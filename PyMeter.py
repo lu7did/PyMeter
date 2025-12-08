@@ -265,6 +265,28 @@ class TuneButton(LedButton):
         self._button.setEnabled(True)
 
 
+class VFOButton(LedButton):
+    """Toggle between VFOA and VFOB labels, with LED showing green for A and red for B."""
+
+    def __init__(self, label: str = "VFOA", parent: QWidget | None = None) -> None:
+        super().__init__(label, parent=parent)
+
+    def set_state(self, value: int) -> None:
+        s = 1 if int(value) else 0
+        if s != self._state:
+            self._state = s
+            if self._state:
+                # VFOB
+                self._led.set_color_on((255, 0, 0))
+                self._button.setText("VFOB")
+                self._led.set_on(True)
+            else:
+                # VFOA
+                self._led.set_color_on((0, 255, 0))
+                self._button.setText("VFOA")
+                self._led.set_on(True)
+
+
 class MainWindow(QMainWindow):
     """Main application window composing the VU meter and TX/RX controls."""
 
@@ -287,6 +309,12 @@ class MainWindow(QMainWindow):
         self.tune = TuneButton("TUNE")
         try:
             self.tune._button.setMinimumWidth(70)
+        except Exception:
+            pass
+        # VFO toggle button under TUNE
+        self.vfo = VFOButton("VFOA")
+        try:
+            self.vfo._button.setMinimumWidth(70)
         except Exception:
             pass
 
@@ -328,6 +356,8 @@ class MainWindow(QMainWindow):
         # row 1: meter (left) and tune button (right)
         grid.addWidget(self.meter, 1, 0)
         grid.addWidget(self.tune, 1, 1, Qt.AlignRight | Qt.AlignVCenter)
+        # place VFO button under Tune
+        grid.addWidget(self.vfo, 2, 1, Qt.AlignRight | Qt.AlignVCenter)
         # row 2: radio buttons under meter, stacked vertically on left
         radio_layout = QVBoxLayout()
         radio_layout.setContentsMargins(0, 0, 0, 0)
@@ -409,6 +439,8 @@ class MainWindow(QMainWindow):
         main_layout = grid
         # Example: connect button click to print state
         self.tr._button.clicked.connect(lambda: print(f"TR state: {self.tr.get_state()}"))
+        # connect VFO change printing
+        self.vfo._button.clicked.connect(lambda: self._on_vfo_changed(self.vfo.get_state()))
 
         self.resize(360, 100)
 
@@ -598,6 +630,14 @@ class MainWindow(QMainWindow):
         # persist selection
         try:
             self._write_config()
+        except Exception:
+            pass
+
+    def _on_vfo_changed(self, state: int) -> None:
+        """Handler invoked when the VFO button is toggled; state is 0 for VFOA, 1 for VFOB."""
+        try:
+            label = "VFOB" if int(state) else "VFOA"
+            print(f"VFO changed: {label}")
         except Exception:
             pass
 
