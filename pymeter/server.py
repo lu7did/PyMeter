@@ -191,7 +191,19 @@ class MeterServer:
         except Exception as e:
             logger.error(f"Server error: {e}")
         finally:
-            self.stop()
+            # Cleanup without calling stop() to avoid potential recursion
+            self.running = False
+            for client in self.clients:
+                try:
+                    client.close()
+                except:
+                    pass
+            self.clients.clear()
+            if self.server_socket:
+                try:
+                    self.server_socket.close()
+                except:
+                    pass
     
     def stop(self):
         """Stop the meter server"""

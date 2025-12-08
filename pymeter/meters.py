@@ -3,6 +3,7 @@ Core meter classes for ham radio station measurements
 """
 
 import time
+import random
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone
@@ -79,7 +80,6 @@ class PowerMeter(BaseMeter):
         """
         if self._simulate:
             # Simulate power reading with some variation
-            import random
             self._value = random.uniform(0, self.max_power)
         
         self._timestamp = time.time()
@@ -119,7 +119,6 @@ class SWRMeter(BaseMeter):
         """
         if self._simulate:
             # Simulate SWR reading (1.0 is perfect, higher is worse)
-            import random
             self._value = random.uniform(1.0, 2.0)
         
         self._timestamp = time.time()
@@ -159,7 +158,6 @@ class SignalStrengthMeter(BaseMeter):
         """
         if self._simulate:
             # Simulate signal strength (-120 to 0 dB)
-            import random
             self._value = random.uniform(-120, -20)
         
         self._timestamp = time.time()
@@ -201,7 +199,6 @@ class VoltageMeter(BaseMeter):
         """
         if self._simulate:
             # Simulate voltage reading around 13.8V (typical for ham radio)
-            import random
             self._value = random.uniform(12.5, 14.2)
         
         self._timestamp = time.time()
