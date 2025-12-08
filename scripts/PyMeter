@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Launcher script for PyMeter
+DIR="$(cd "$(dirname "$0")" && pwd)"
+exec python3 "$DIR/../PyMeter.py" "$@"
