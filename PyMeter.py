@@ -42,6 +42,8 @@ class VUMeter(QWidget):
         # this allows precise control over colors per LED
         self._bands = (['green'] * 5) + (['yellow'] * 3) + (['red'] * 2)
         self.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.MinimumExpanding)
+        # whether the meter is enabled (online). When disabled, all LEDs show off colors
+        self._enabled = True
 
     def sizeHint(self) -> QSize:  # pragma: no cover - GUI helper
         return QSize(200, 60)
@@ -80,7 +82,11 @@ class VUMeter(QWidget):
             # determine band from explicit mapping to ensure 5/3/2 distribution
             band = self._bands[i] if i < len(self._bands) else ("green" if frac < 0.4 else ("yellow" if frac < 0.75 else "red"))
             on_color, off_color = self._colors_for_band(band)
-            brush_color = on_color if i < lit_count else off_color
+            # If meter is disabled (offline) always show off colors
+            if not getattr(self, "_enabled", True):
+                brush_color = off_color
+            else:
+                brush_color = on_color if i < lit_count else off_color
             painter.setPen(QPen(Qt.black, 1))
             painter.setBrush(brush_color)
             painter.drawRoundedRect(x, y, rect_w, rect_h, 3, 3)
@@ -107,6 +113,11 @@ class VUMeter(QWidget):
         if band == "yellow":
             return QColor(255, 255, 0), QColor(120, 120, 0)
         return QColor(255, 0, 0), QColor(120, 0, 0)
+
+    def set_enabled(self, enabled: bool) -> None:
+        """Enable or disable the meter display. When disabled all LEDs show off colors."""
+        self._enabled = bool(enabled)
+        self.update()
 
 
 class LedIndicator(QWidget):
@@ -273,17 +284,17 @@ class MainWindow(QMainWindow):
         ready_row.setContentsMargins(0, 0, 0, 0)
         self.ready_label = QLabel("Offline")
         # remove extra label padding/margins so LED can sit next to the text
-        self.ready_label.setStyleSheet("font-weight: bold; margin: 0px; padding-right: 0px;")
+        self.ready_label.setStyleSheet("font-weight: bold; margin: 0px; padding-left: 2px;")
         # make ready LED slightly smaller to sit closer to the text
         self.ready_led = LedIndicator(diameter=6)
         # ready: on color lime, off color dark green, start off
         self.ready_led.set_color_on((0, 255, 0))
         self.ready_led.set_color_off((0, 100, 0))
         self.ready_led.set_on(False)
-        ready_row.addWidget(self.ready_label)
         ready_row.addWidget(self.ready_led)
-        ready_row.setAlignment(self.ready_label, Qt.AlignVCenter)
+        ready_row.addWidget(self.ready_label)
         ready_row.setAlignment(self.ready_led, Qt.AlignVCenter)
+        ready_row.setAlignment(self.ready_label, Qt.AlignVCenter)
 
         # Layout
         # Create a grid so corresponding rows align vertically across columns
@@ -318,16 +329,71 @@ class MainWindow(QMainWindow):
         self.tr.set_state(value)
 
     def set_ready(self, enabled: bool) -> None:
-        """Programmatically set the Ready LED: True -> lime on (Online), False -> dark green off (Offline)."""
+        """Programmatically set the Ready LED and toggle app online/offline behavior.
+
+        When enabled is True the UI is Online: buttons enabled, LEDs show on colors and vumeter is active.
+        When False the UI is Offline: buttons disabled, LEDs show off (dim) colors and vumeter shows only off colors.
+        """
         try:
-            if enabled:
+            self._online = bool(enabled)
+            # update ready LED and label
+            if self._online:
                 self.ready_led.set_color_on((0, 255, 0))
                 self.ready_led.set_on(True)
                 self.ready_label.setText("Online")
             else:
-                # off uses the dark green off color defined earlier
                 self.ready_led.set_on(False)
                 self.ready_label.setText("Offline")
+
+            # enable/disable controls
+            self.tr._button.setEnabled(self._online)
+            self.tune._button.setEnabled(self._online)
+
+            # update TR (RX/TX) LED visuals according to mode and online state
+            try:
+                if self._online:
+                    if self.tr.get_state():
+                        # TX: vivid red on
+                        self.tr._led.set_color_on((255, 0, 0))
+                        self.tr._led.set_on(True)
+                        self.tr._button.setText("TX")
+                    else:
+                        # RX: lime on
+                        self.tr._led.set_color_on((0, 255, 0))
+                        self.tr._led.set_on(True)
+                        self.tr._button.setText("RX")
+                else:
+                    # offline -> LEDs off (dim) according to current logical state
+                    if self.tr.get_state():
+                        # TX dim red
+                        self.tr._led.set_color_off((120, 0, 0))
+                        self.tr._led.set_on(False)
+                        self.tr._button.setText("TX")
+                    else:
+                        # RX dim green
+                        self.tr._led.set_color_off((0, 100, 0))
+                        self.tr._led.set_on(False)
+                        self.tr._button.setText("RX")
+            except Exception:
+                pass
+
+            # update TUNE visuals
+            try:
+                if self._online:
+                    self.tune._led.set_color_on((0, 255, 0))
+                    self.tune._led.set_on(True)
+                else:
+                    self.tune._led.set_color_off((0, 100, 0))
+                    self.tune._led.set_on(False)
+            except Exception:
+                pass
+
+            # enable/disable vumeter rendering
+            try:
+                self.meter.set_enabled(self._online)
+            except Exception:
+                pass
+
         except Exception:
             # ignore if ready widget not present
             pass
@@ -360,7 +426,12 @@ def main(argv: list[str] | None = None) -> int:
             elif val <= 0:
                 val = 0
                 direction = 1
-            win.set_meter(val)
+            # only update display if online
+            try:
+                if getattr(win, "_online", False):
+                    win.set_meter(val)
+            except Exception:
+                pass
 
         timer = QTimer()
         timer.timeout.connect(tick)
