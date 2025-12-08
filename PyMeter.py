@@ -471,44 +471,54 @@ class MainWindow(QMainWindow):
         rig2_row.addWidget(self.rb_rig2)
         rig2_row.addWidget(self.rig2_label)
         rig_vlayout.addLayout(rig2_row)
-        # sliders: Power and Volumen placed under rig1/rig2
+        # connect handler
+        self.rig_group.buttonClicked.connect(self._on_rig_changed)
+        grid.addLayout(rig_vlayout, 2, 1, Qt.AlignLeft)
+
+        # Sliders placed in their own block below rig controls so they don't overlap
         from PyQt5.QtWidgets import QSlider
+        slider_vlayout = QVBoxLayout()
+        slider_vlayout.setContentsMargins(0, 6, 0, 0)
+        slider_vlayout.setSpacing(6)
+
+        # fixed label width so labels align left and sliders align vertically
+        label_width = 60
+        slider_width = 220
+
         self.slider_power_label = QLabel("Power")
+        self.slider_power_label.setFixedWidth(label_width)
         self.slider_power = QSlider(Qt.Horizontal)
         self.slider_power.setRange(0, 255)
         self.slider_power.setValue(0)
         self.slider_power.valueChanged.connect(self._on_power_changed)
+        self.slider_power.setFixedWidth(slider_width)
         self.slider_power_value = QLabel("0")
         power_row = QHBoxLayout()
-        power_row.setContentsMargins(0, 2, 0, 0)
+        power_row.setContentsMargins(0, 0, 0, 0)
+        power_row.setSpacing(6)
         power_row.addWidget(self.slider_power_label)
         power_row.addWidget(self.slider_power)
         power_row.addWidget(self.slider_power_value)
-        rig_vlayout.addLayout(power_row)
+        slider_vlayout.addLayout(power_row)
 
         self.slider_vol_label = QLabel("Volumen")
+        self.slider_vol_label.setFixedWidth(label_width)
         self.slider_vol = QSlider(Qt.Horizontal)
         self.slider_vol.setRange(0, 255)
         self.slider_vol.setValue(0)
         self.slider_vol.valueChanged.connect(self._on_volume_changed)
+        self.slider_vol.setFixedWidth(slider_width)
         self.slider_vol_value = QLabel("0")
         vol_row = QHBoxLayout()
-        vol_row.setContentsMargins(0, 2, 0, 0)
+        vol_row.setContentsMargins(0, 0, 0, 0)
+        vol_row.setSpacing(6)
         vol_row.addWidget(self.slider_vol_label)
         vol_row.addWidget(self.slider_vol)
         vol_row.addWidget(self.slider_vol_value)
-        rig_vlayout.addLayout(vol_row)
+        slider_vlayout.addLayout(vol_row)
 
-        # make sliders same minimum width to align and avoid overlap
-        try:
-            self.slider_power.setMinimumWidth(140)
-            self.slider_vol.setMinimumWidth(140)
-        except Exception:
-            pass
-
-        # connect handler
-        self.rig_group.buttonClicked.connect(self._on_rig_changed)
-        grid.addLayout(rig_vlayout, 2, 1, Qt.AlignLeft)
+        # place sliders below (row 4) to avoid overlapping with rig controls
+        grid.addLayout(slider_vlayout, 4, 1, Qt.AlignLeft)
 
         # ensure meter row expands
         grid.setRowStretch(1, 1)
