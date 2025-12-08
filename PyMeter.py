@@ -287,6 +287,34 @@ class VFOButton(LedButton):
                 self._led.set_on(True)
 
 
+class SwapButton(LedButton):
+    """Momentary action button for swapping VFOs: blinks red and emits swap event."""
+
+    def __init__(self, label: str = "A<>B", parent: QWidget | None = None) -> None:
+        super().__init__(label, parent=parent)
+
+    def _on_clicked(self) -> None:
+        # emit a swap message and blink red briefly
+        try:
+            print("Swap VFO requested: A<->B")
+            # show red briefly
+            self._led.set_color_on((255, 0, 0))
+            self._led.set_on(True)
+            self._button.setEnabled(False)
+            QTimer.singleShot(600, self._restore)
+        except Exception:
+            pass
+
+    def _restore(self) -> None:
+        # return led to green
+        try:
+            self._led.set_color_on((0, 255, 0))
+            self._led.set_on(True)
+            self._button.setEnabled(True)
+        except Exception:
+            pass
+
+
 class MainWindow(QMainWindow):
     """Main application window composing the VU meter and TX/RX controls."""
 
@@ -358,6 +386,13 @@ class MainWindow(QMainWindow):
         grid.addWidget(self.tune, 1, 1, Qt.AlignRight | Qt.AlignVCenter)
         # place VFO button under Tune
         grid.addWidget(self.vfo, 2, 1, Qt.AlignRight | Qt.AlignVCenter)
+        # place Swap button under VFO
+        self.swap = SwapButton("A<>B")
+        try:
+            self.swap._button.setMinimumWidth(70)
+        except Exception:
+            pass
+        grid.addWidget(self.swap, 3, 1, Qt.AlignRight | Qt.AlignVCenter)
         # row 2: radio buttons under meter, stacked vertically on left
         radio_layout = QVBoxLayout()
         radio_layout.setContentsMargins(0, 0, 0, 0)
@@ -441,6 +476,8 @@ class MainWindow(QMainWindow):
         self.tr._button.clicked.connect(lambda: print(f"TR state: {self.tr.get_state()}"))
         # connect VFO change printing
         self.vfo._button.clicked.connect(lambda: self._on_vfo_changed(self.vfo.get_state()))
+        # connect swap button
+        self.swap._button.clicked.connect(lambda: self._on_swap())
 
         self.resize(360, 100)
 
@@ -638,6 +675,13 @@ class MainWindow(QMainWindow):
         try:
             label = "VFOB" if int(state) else "VFOA"
             print(f"VFO changed: {label}")
+        except Exception:
+            pass
+
+    def _on_swap(self) -> None:
+        """Handler for swap button press - perform swap action/event."""
+        try:
+            print("Swap event: exchange VFO A <-> B")
         except Exception:
             pass
 
