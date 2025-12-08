@@ -312,10 +312,10 @@ class MainWindow(QMainWindow):
         # row 1: meter (left) and tune button (right)
         grid.addWidget(self.meter, 1, 0)
         grid.addWidget(self.tune, 1, 1, Qt.AlignVCenter)
-        # row 2: radio buttons under meter, left aligned
-        radio_layout = QHBoxLayout()
+        # row 2: radio buttons under meter, stacked vertically on left
+        radio_layout = QVBoxLayout()
         radio_layout.setContentsMargins(0, 0, 0, 0)
-        radio_layout.setSpacing(6)
+        radio_layout.setSpacing(2)
         self.rb_signal = QRadioButton("Signal")
         self.rb_power = QRadioButton("Power")
         self.rb_swr = QRadioButton("SWR")
@@ -327,6 +327,8 @@ class MainWindow(QMainWindow):
         radio_layout.addWidget(self.rb_signal)
         radio_layout.addWidget(self.rb_power)
         radio_layout.addWidget(self.rb_swr)
+        # connect handler to selection changes
+        self.mode_group.buttonClicked.connect(self._on_mode_changed)
         grid.addLayout(radio_layout, 2, 0, Qt.AlignLeft)
         # ensure meter row expands
         grid.setRowStretch(1, 1)
@@ -413,6 +415,18 @@ class MainWindow(QMainWindow):
 
         except Exception:
             # ignore if ready widget not present
+            pass
+
+    def _on_mode_changed(self, button) -> None:
+        """Handler called when one of the mode radio buttons is selected.
+
+        Prints which radio button was selected; can be adapted to perform
+        other logic based on the selected mode.
+        """
+        try:
+            name = button.text() if hasattr(button, "text") else str(button)
+            print(f"Mode selected: {name}")
+        except Exception:
             pass
 
 
