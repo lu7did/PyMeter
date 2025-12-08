@@ -376,6 +376,9 @@ class MainWindow(QMainWindow):
 
         grid = QGridLayout(central)
         grid.setContentsMargins(12, 4, 12, 4)
+        # reduce vertical spacing so radio group sits immediately under the meter
+        grid.setVerticalSpacing(4)
+        grid.setRowMinimumHeight(2, 2)
         grid.setColumnStretch(0, 1)
         grid.setColumnStretch(1, 0)
         # row 0: ready label+led (left) and TR area (right)
