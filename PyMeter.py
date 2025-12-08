@@ -18,6 +18,8 @@ from PyQt5.QtWidgets import (
     QWidget,
     QPushButton,
     QLabel,
+    QRadioButton,
+    QButtonGroup,
     QHBoxLayout,
     QVBoxLayout,
     QMainWindow,
@@ -310,13 +312,29 @@ class MainWindow(QMainWindow):
         # row 1: meter (left) and tune button (right)
         grid.addWidget(self.meter, 1, 0)
         grid.addWidget(self.tune, 1, 1, Qt.AlignVCenter)
+        # row 2: radio buttons under meter, left aligned
+        radio_layout = QHBoxLayout()
+        radio_layout.setContentsMargins(0, 0, 0, 0)
+        radio_layout.setSpacing(6)
+        self.rb_signal = QRadioButton("Signal")
+        self.rb_power = QRadioButton("Power")
+        self.rb_swr = QRadioButton("SWR")
+        self.mode_group = QButtonGroup(self)
+        self.mode_group.addButton(self.rb_signal)
+        self.mode_group.addButton(self.rb_power)
+        self.mode_group.addButton(self.rb_swr)
+        self.rb_signal.setChecked(True)
+        radio_layout.addWidget(self.rb_signal)
+        radio_layout.addWidget(self.rb_power)
+        radio_layout.addWidget(self.rb_swr)
+        grid.addLayout(radio_layout, 2, 0, Qt.AlignLeft)
         # ensure meter row expands
         grid.setRowStretch(1, 1)
 
         main_layout = grid
         # Example: connect button click to print state
         self.tr._button.clicked.connect(lambda: print(f"TR state: {self.tr.get_state()}"))
-  
+
         self.resize(360, 100)
 
     # Programmatic control methods
@@ -363,17 +381,16 @@ class MainWindow(QMainWindow):
                         self.tr._led.set_on(True)
                         self.tr._button.setText("RX")
                 else:
-                    # offline -> LEDs off (dim) according to current logical state
-                    if self.tr.get_state():
-                        # TX dim red
-                        self.tr._led.set_color_off((120, 0, 0))
-                        self.tr._led.set_on(False)
-                        self.tr._button.setText("TX")
-                    else:
-                        # RX dim green
+                    # offline -> force RX state and show dim green off LED
+                    try:
+                        # set logical state to RX
+                        self.tr.set_state(0)
+                        # ensure LED shows dim/off green
                         self.tr._led.set_color_off((0, 100, 0))
                         self.tr._led.set_on(False)
                         self.tr._button.setText("RX")
+                    except Exception:
+                        pass
             except Exception:
                 pass
 
