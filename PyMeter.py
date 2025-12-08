@@ -384,15 +384,15 @@ class MainWindow(QMainWindow):
         # row 1: meter (left) and tune button (right)
         grid.addWidget(self.meter, 1, 0)
         grid.addWidget(self.tune, 1, 1, Qt.AlignRight | Qt.AlignVCenter)
-        # place VFO button under Tune
-        grid.addWidget(self.vfo, 2, 1, Qt.AlignRight | Qt.AlignVCenter)
-        # place Swap button under VFO
+        # place Swap button under Tune (above VFO) to space uniformly between TR/TUNE
         self.swap = SwapButton("A<>B")
         try:
             self.swap._button.setMinimumWidth(70)
         except Exception:
             pass
-        grid.addWidget(self.swap, 3, 1, Qt.AlignRight | Qt.AlignVCenter)
+        grid.addWidget(self.swap, 2, 1, Qt.AlignRight | Qt.AlignVCenter)
+        # place VFO button under Swap
+        grid.addWidget(self.vfo, 3, 1, Qt.AlignRight | Qt.AlignVCenter)
         # row 2: radio buttons under meter, stacked vertically on left
         radio_layout = QVBoxLayout()
         radio_layout.setContentsMargins(0, 0, 0, 0)
@@ -410,7 +410,7 @@ class MainWindow(QMainWindow):
         radio_layout.addWidget(self.rb_swr)
         # connect handler to selection changes
         self.mode_group.buttonClicked.connect(self._on_mode_changed)
-        grid.addLayout(radio_layout, 2, 0, Qt.AlignLeft)
+        grid.addLayout(radio_layout, 4, 0, Qt.AlignLeft)
 
         # Antenna selection below the mode radios (Ant 1 / Ant 2)
         ant_layout = QVBoxLayout()
@@ -426,7 +426,7 @@ class MainWindow(QMainWindow):
         ant_layout.addWidget(self.rb_ant2)
         # connect antenna handler
         self.ant_group.buttonClicked.connect(self._on_ant_changed)
-        grid.addLayout(ant_layout, 3, 0, Qt.AlignLeft)
+        grid.addLayout(ant_layout, 5, 0, Qt.AlignLeft)
 
         # rig selection controls stacked under Tune on right column
         rig_vlayout = QVBoxLayout()
@@ -461,9 +461,44 @@ class MainWindow(QMainWindow):
         rig2_row.addWidget(self.rb_rig2)
         rig2_row.addWidget(self.rig2_label)
         rig_vlayout.addLayout(rig2_row)
+        # sliders: Power and Volumen placed under rig1/rig2
+        from PyQt5.QtWidgets import QSlider
+        self.slider_power_label = QLabel("Power")
+        self.slider_power = QSlider(Qt.Horizontal)
+        self.slider_power.setRange(0, 255)
+        self.slider_power.setValue(0)
+        self.slider_power.valueChanged.connect(self._on_power_changed)
+        self.slider_power_value = QLabel("0")
+        power_row = QHBoxLayout()
+        power_row.setContentsMargins(0, 2, 0, 0)
+        power_row.addWidget(self.slider_power_label)
+        power_row.addWidget(self.slider_power)
+        power_row.addWidget(self.slider_power_value)
+        rig_vlayout.addLayout(power_row)
+
+        self.slider_vol_label = QLabel("Volumen")
+        self.slider_vol = QSlider(Qt.Horizontal)
+        self.slider_vol.setRange(0, 255)
+        self.slider_vol.setValue(0)
+        self.slider_vol.valueChanged.connect(self._on_volume_changed)
+        self.slider_vol_value = QLabel("0")
+        vol_row = QHBoxLayout()
+        vol_row.setContentsMargins(0, 2, 0, 0)
+        vol_row.addWidget(self.slider_vol_label)
+        vol_row.addWidget(self.slider_vol)
+        vol_row.addWidget(self.slider_vol_value)
+        rig_vlayout.addLayout(vol_row)
+
+        # make sliders same minimum width to align and avoid overlap
+        try:
+            self.slider_power.setMinimumWidth(140)
+            self.slider_vol.setMinimumWidth(140)
+        except Exception:
+            pass
+
         # connect handler
         self.rig_group.buttonClicked.connect(self._on_rig_changed)
-        grid.addLayout(rig_vlayout, 2, 1, Qt.AlignLeft)
+        grid.addLayout(rig_vlayout, 4, 1, Qt.AlignLeft)
 
         # ensure meter row expands
         grid.setRowStretch(1, 1)
@@ -503,6 +538,8 @@ class MainWindow(QMainWindow):
             cfg['RIG'] = 'rig1'
             cfg['ANT'] = 'Ant 1'
             cfg['VFO'] = 'VFOA'
+            cfg['POWER'] = '0'
+            cfg['VOLUME'] = '0'
             try:
                 p.write_text('\n'.join(f"{k}={v}" for k, v in cfg.items()) + '\n')
             except Exception:
@@ -533,6 +570,15 @@ class MainWindow(QMainWindow):
                 self.vfo.set_state(1)
             else:
                 self.vfo.set_state(0)
+            # Power / Volume
+            try:
+                self.slider_power.setValue(int(cfg.get('POWER', '0')))
+            except Exception:
+                pass
+            try:
+                self.slider_vol.setValue(int(cfg.get('VOLUME', '0')))
+            except Exception:
+                pass
             # update ready label
             self._update_ready_rig_label()
         except Exception:
@@ -548,7 +594,9 @@ class MainWindow(QMainWindow):
             rig = 'rig1' if self.rb_rig1.isChecked() else 'rig2'
             ant = 'Ant 1' if self.rb_ant1.isChecked() else 'Ant 2'
             vfo = 'VFOB' if self.vfo.get_state() else 'VFOA'
-            p.write_text(f"SIGNAL={sig}\nRIG={rig}\nANT={ant}\nVFO={vfo}\n")
+            power = str(int(self.slider_power.value())) if getattr(self, 'slider_power', None) else '0'
+            volume = str(int(self.slider_vol.value())) if getattr(self, 'slider_vol', None) else '0'
+            p.write_text(f"SIGNAL={sig}\nRIG={rig}\nANT={ant}\nVFO={vfo}\nPOWER={power}\nVOLUME={volume}\n")
         except Exception:
             pass
 
@@ -714,6 +762,30 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
         # persist VFO state
+        try:
+            self._write_config()
+        except Exception:
+            pass
+
+    def _on_power_changed(self, value: int) -> None:
+        """Handler when Power slider changes."""
+        try:
+            self.slider_power_value.setText(str(int(value)))
+            print(f"Power level: {int(value)}")
+        except Exception:
+            pass
+        try:
+            self._write_config()
+        except Exception:
+            pass
+
+    def _on_volume_changed(self, value: int) -> None:
+        """Handler when Volumen slider changes."""
+        try:
+            self.slider_vol_value.setText(str(int(value)))
+            print(f"Volume level: {int(value)}")
+        except Exception:
+            pass
         try:
             self._write_config()
         except Exception:
