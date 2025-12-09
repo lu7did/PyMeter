@@ -599,24 +599,30 @@ class MainWindow(QMainWindow):
                     self.slider_power.blockSignals(True)
                     self.slider_power.setValue(int(cfg.get('POWER', '0')))
                     self.slider_power.blockSignals(False)
-                    # update displayed numeric label and power meter
+                    # update displayed numeric label using conversion formula
                     try:
-                        self.slider_power_value.setText(str(int(self.slider_power.value())) )
+                        valp = int(self.slider_power.value())
+                        disp_p = self._power_display_from_slider(valp)
+                        self.slider_power_value.setText(str(disp_p))
                     except Exception:
                         pass
             except Exception:
                 pass
+
             try:
                 if getattr(self, 'slider_vol', None) is not None:
                     self.slider_vol.blockSignals(True)
                     self.slider_vol.setValue(int(cfg.get('VOLUME', '0')))
                     self.slider_vol.blockSignals(False)
                     try:
-                        self.slider_vol_value.setText(str(int(self.slider_vol.value())) )
+                        valv = int(self.slider_vol.value())
+                        disp_v = self._volume_display_from_slider(valv)
+                        self.slider_vol_value.setText(f"{disp_v:.1f}")
                     except Exception:
                         pass
             except Exception:
                 pass
+
             # update ready label
             self._update_ready_rig_label()
         except Exception:
@@ -827,6 +833,24 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
+    def _power_display_from_slider(self, s: int) -> int:
+        """Convert raw slider S (0..255) to displayed Power value using formula ((95*S/255)+5).
+        Returns integer rounded value."""
+        try:
+            val = (95.0 * float(s) / 255.0) + 5.0
+            return int(round(val))
+        except Exception:
+            return 0
+
+    def _volume_display_from_slider(self, s: int) -> float:
+        """Convert raw slider S (0..255) to displayed Volume using formula (10*S/255).
+        Returns float rounded to one decimal."""
+        try:
+            val = 10.0 * float(s) / 255.0
+            return round(val, 1)
+        except Exception:
+            return 0.0
+
     def _handle_slider_change(self, name: str, value: int, slider_obj) -> None:
         """Unified handler for sliders that updates only the specified control.
 
@@ -835,22 +859,13 @@ class MainWindow(QMainWindow):
         """
         try:
             if name == 'power' and slider_obj is self.slider_power:
-                self.slider_power_value.setText(str(int(value)))
-                print(f"Power level: {int(value)}")
-                try:
-                    # update power-specific VU meter
-                    if getattr(self, 'power_meter', None) is not None:
-                        self.power_meter.set_value(int(value))
-                except Exception:
-                    pass
+                disp = self._power_display_from_slider(int(value))
+                self.slider_power_value.setText(str(disp))
+                print(f"Power level (slider={int(value)}): {disp}")
             elif name == 'volume' and slider_obj is self.slider_vol:
-                self.slider_vol_value.setText(str(int(value)))
-                print(f"Volume level: {int(value)}")
-                try:
-                    if getattr(self, 'volume_meter', None) is not None:
-                        self.volume_meter.set_value(int(value))
-                except Exception:
-                    pass
+                disp = self._volume_display_from_slider(int(value))
+                self.slider_vol_value.setText(f"{disp:.1f}")
+                print(f"Volume level (slider={int(value)}): {disp:.1f}")
             else:
                 return
         except Exception:
