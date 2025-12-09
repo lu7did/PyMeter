@@ -500,10 +500,6 @@ class MainWindow(QMainWindow):
         power_row.addWidget(self.slider_power_label)
         power_row.addWidget(self.slider_power)
         power_row.addWidget(self.slider_power_value)
-        # small VU meter for power next to the slider value
-        self.power_meter = VUMeter(segments=10)
-        self.power_meter.setFixedSize(120, 18)
-        power_row.addWidget(self.power_meter)
         slider_vlayout.addLayout(power_row)
 
         self.slider_vol_label = QLabel("Volumen")
@@ -521,10 +517,6 @@ class MainWindow(QMainWindow):
         vol_row.addWidget(self.slider_vol_label)
         vol_row.addWidget(self.slider_vol)
         vol_row.addWidget(self.slider_vol_value)
-        # small VU meter for volume
-        self.volume_meter = VUMeter(segments=10)
-        self.volume_meter.setFixedSize(120, 18)
-        vol_row.addWidget(self.volume_meter)
         slider_vlayout.addLayout(vol_row)
 
         # place sliders below (row 4) to avoid overlapping with rig controls
@@ -609,10 +601,7 @@ class MainWindow(QMainWindow):
                     self.slider_power.blockSignals(False)
                     # update displayed numeric label and power meter
                     try:
-                        valp = int(self.slider_power.value())
-                        self.slider_power_value.setText(str(valp))
-                        if getattr(self, 'power_meter', None) is not None:
-                            self.power_meter.set_value(valp)
+                        self.slider_power_value.setText(str(int(self.slider_power.value())) )
                     except Exception:
                         pass
             except Exception:
@@ -623,10 +612,7 @@ class MainWindow(QMainWindow):
                     self.slider_vol.setValue(int(cfg.get('VOLUME', '0')))
                     self.slider_vol.blockSignals(False)
                     try:
-                        valv = int(self.slider_vol.value())
-                        self.slider_vol_value.setText(str(valv))
-                        if getattr(self, 'volume_meter', None) is not None:
-                            self.volume_meter.set_value(valv)
+                        self.slider_vol_value.setText(str(int(self.slider_vol.value())) )
                     except Exception:
                         pass
             except Exception:
@@ -759,14 +745,6 @@ class MainWindow(QMainWindow):
             # enable/disable vumeter rendering
             try:
                 self.meter.set_enabled(self._online)
-                # also enable/disable small per-slider meters
-                try:
-                    if getattr(self, 'power_meter', None) is not None:
-                        self.power_meter.set_enabled(self._online)
-                    if getattr(self, 'volume_meter', None) is not None:
-                        self.volume_meter.set_enabled(self._online)
-                except Exception:
-                    pass
             except Exception:
                 pass
 
