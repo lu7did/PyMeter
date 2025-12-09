@@ -856,6 +856,7 @@ class MainWindow(QMainWindow):
 
         name is 'power' or 'volume', value is new int, slider_obj is the QSlider that produced the event.
         This method strictly updates only the named slider and persists the value.
+        After change, refresh both slider visuals so both images/labels reflect current values.
         """
         try:
             if name == 'power' and slider_obj is self.slider_power:
@@ -873,6 +874,34 @@ class MainWindow(QMainWindow):
         # persist only this value (write whole config)
         try:
             self._write_config()
+        except Exception:
+            pass
+        # refresh both slider visuals so images/labels reflect current values
+        try:
+            self._refresh_sliders()
+        except Exception:
+            pass
+
+    def _refresh_sliders(self) -> None:
+        """Refresh displayed labels/images for both sliders from current slider values."""
+        try:
+            if getattr(self, 'slider_power', None) is not None:
+                valp = int(self.slider_power.value())
+                disp_p = self._power_display_from_slider(valp)
+                try:
+                    self.slider_power_value.setText(f"{disp_p}W")
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        try:
+            if getattr(self, 'slider_vol', None) is not None:
+                valv = int(self.slider_vol.value())
+                disp_v = self._volume_display_from_slider(valv)
+                try:
+                    self.slider_vol_value.setText(str(disp_v))
+                except Exception:
+                    pass
         except Exception:
             pass
 
