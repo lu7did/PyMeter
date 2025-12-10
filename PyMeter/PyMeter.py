@@ -44,26 +44,8 @@ from PyQt5.QtWidgets import (
     QSizePolicy,
 )
 
-defaultNamedNotOptArg = pythoncom.Empty
 flagEnd = False
 
-#*--------------------------------------------------------------------------------------
-#* OmniRig handler classes
-#*--------------------------------------------------------------------------------------
-class OmniRigEvents:
-    """Manejador de eventos para OmniRig (COM)."""
-
-    def OnCustomReply(self,
-                      RigNumber=defaultNamedNotOptArg,
-                      Command=defaultNamedNotOptArg,
-                      Reply=defaultNamedNotOptArg):
-        """Evento disparado cuando llega una respuesta al comando personalizado."""
-        try:
-            reply_bytes = bytes(Reply)
-        except TypeError:
-            reply_bytes = Reply
-        print(f"[CustomReply] Rig={RigNumber} Cmd={Command!r} Reply={reply_bytes!r}")
-        flagEnd = True
 
 def get_attribute(rig):
     """
@@ -128,6 +110,7 @@ class VUMeter(QWidget):
         self._bands = (['green'] * 5) + (['yellow'] * 3) + (['red'] * 2)
         self.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.MinimumExpanding)
         # whether the meter is enabled (online). When disabled, all LEDs show off colors
+
         self._enabled = True
 
     def sizeHint(self) -> QSize:  # pragma: no cover - GUI helper
@@ -396,9 +379,22 @@ class SwapButton(LedButton):
         except Exception:
             pass
 
+class OmniRigEvents:
+
+   defaultNamedNotOptArg = pythoncom.Empty
+
+   def OnCustomReply(self,RigNumber=defaultNamedNotOptArg,Command=defaultNamedNotOptArg,Reply=defaultNamedNotOptArg):
+       try:
+          reply_bytes = bytes(Reply)
+       except TypeError:
+          reply_bytes = Reply
+       print(f"[CustomReply] Rig={RigNumber} Cmd={Command!r} Reply={reply_bytes!r}")
 
 class MainWindow(QMainWindow):
     """Main application window composing the VU meter and TX/RX controls."""
+
+    defaultNamedNotOptArg = pythoncom.Empty
+
 
     def __init__(self) -> None:
         super().__init__()
@@ -619,6 +615,19 @@ class MainWindow(QMainWindow):
         self.swap._button.clicked.connect(lambda: self._on_swap())
 
         self.resize(360, 100)
+    # ----------------------------------------------------------------------
+    # CREAR OBJETO COM
+    # ----------------------------------------------------------------------
+        self.omni = win32com.client.gencache.EnsureDispatch("OmniRig.OmniRigX")
+        self.omni_events = win32com.client.WithEvents(self.omni, OmniRigEvents)
+        self.rig1 = self.omni.Rig1
+        self.rig2 = self.omni.Rig2
+
+
+    # -----------------[Start GUI operation ]-------------------------------
+#*--------------------------------------------------------------------------------------
+#* OmniRig handler classes
+#*--------------------------------------------------------------------------------------
 
     def load_config(self, path: str | Path) -> None:
         """Load config from file path (KEY=VALUE lines). Creates default if missing."""
@@ -877,7 +886,7 @@ class MainWindow(QMainWindow):
             pass
         try:
             print("va a updateRigStatus")
-            updateRigStatus(omni,win)
+            self.updateRigStatus()
         except Exception:
             pass
     
@@ -1031,6 +1040,46 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
+    def updateRigStatus(self) -> None:
+
+       print("entra en updateRigStatus")
+       r1=self.rig1
+       r2=self.rig2
+
+       rig1name=r1.RigType
+       rig2name=r2.RigType
+
+
+       print(f"Type ({r1.RigType}) VFO A/B({r1.Vfo}) main({r1.Freq}) A({r1.FreqA}) B({r1.FreqB}) Mode({getMode(r1.Mode)}) Split({r1.Split and 0x8000})")
+       print(f"Type ({r1.RigType}) Status({r1.Status}) RIT({r1.Rit}) XIT({r1.Xit}) Status({r1.StatusStr})")
+
+       print(f"Type ({r2.RigType}) VFO A/B({r2.Vfo}) main({r2.Freq}) A({r2.FreqA}) B({r2.FreqB}) Mode({getMode(r2.Mode)}) Split({r2.Split and 0x8000})")
+       print(f"Type ({r2.RigType}) Status({r2.Status}) RIT({r2.Rit}) XIT({r2.Xit}) Status({r2.StatusStr})")
+
+       self.rig1_label.setText(rig1name)
+       self.rig2_label.setText(rig2name)
+
+       if self.rb_rig1.isChecked():
+          print("Rig1 is checked")
+          if r1.StatusStr == "On-line":
+             self.set_ready(True)
+             self.ready_rig_label.setText(f"({r1.RigType})")
+          else:
+             self.set_ready(False)
+             self.ready_rig_label.setText("")
+       print("Termino de verificar rig1")
+       if self.rb_rig2.isChecked():
+          print("Rig2 is checked")
+          if r2.StatusStr == "On-line":
+             self.set_ready(True)
+             self.ready_rig_label.setText(f"({r2.RigType})")
+          else:
+             self.set_ready(False)
+             self.ready_rig_label.setText("")
+       print("Termino de verificar rig2")
+
+
+
     def SendCAT(rig, command_str,reply_length,reply_end):
        command_bytes = command_str.encode("ascii")
        try:
@@ -1047,42 +1096,6 @@ class MainWindow(QMainWindow):
        except Exception:
            pass
 
-def updateRigStatus(omni,win):
-
-    print("entra en updateRigStatus")
-    rig1=omni.Rig1
-    rig2=omni.Rig2
-
-    rig1name=rig1.RigType
-    rig2name=rig2.RigType
-
-    print(f"Type ({rig1.RigType}) VFO A/B({rig1.Vfo}) main({rig1.Freq}) A({rig1.FreqA}) B({rig1.FreqB}) Mode({getMode(rig1.Mode)}) Split({rig1.Split and 0x8000})")
-    print(f"Type ({rig1.RigType}) Status({rig1.Status}) RIT({rig1.Rit}) XIT({rig1.Xit}) Status({rig1.StatusStr})")
-
-    print(f"Type ({rig2.RigType}) VFO A/B({rig2.Vfo}) main({rig2.Freq}) A({rig2.FreqA}) B({rig2.FreqB}) Mode({getMode(rig2.Mode)}) Split({rig2.Split and 0x8000})")
-    print(f"Type ({rig2.RigType}) Status({rig2.Status}) RIT({rig2.Rit}) XIT({rig2.Xit}) Status({rig2.StatusStr})")
-
-    win.rig1_label.setText(rig1name)
-    win.rig2_label.setText(rig2name)
-
-    if win.rb_rig1.isChecked():
-       print("Rig1 is checked")
-       if rig1.StatusStr == "On-line":
-          win.set_ready(True)
-          win.ready_rig_label.setText(f"({rig1.RigType})")
-       else:
-          win.set_ready(False)
-          win.ready_rig_label.setText("")
-    print("Termino de verificar rig1")
-    if win.rb_rig2.isChecked():
-       print("Rig2 is checked")
-       if rig2.StatusStr == "On-line":
-          win.set_ready(True)
-          win.ready_rig_label.setText(f"({rig2.RigType})")
-       else:
-          win.set_ready(False)
-          win.ready_rig_label.setText("")
-    print("Termino de verificar rig2")
      
 
 def main(argv: list[str] | None = None) -> int:
@@ -1181,24 +1194,12 @@ def main(argv: list[str] | None = None) -> int:
     #if not config_path:
     #    config_path = "PyMeter.ini"
 
-    # ----------------------------------------------------------------------
-    # CREAR OBJETO COM
-    # ----------------------------------------------------------------------
-    omni = win32com.client.gencache.EnsureDispatch("OmniRig.OmniRigX")
-    omni_events = win32com.client.WithEvents(omni, OmniRigEvents)
-
-    if args.rig.upper() == "RIG2":
-       rig=omni.Rig2
-    else:
-       rig=omni.Rig1    
-
-    #rig1 = omni.Rig1
 
 
 #*----------------------------------------------------------------------------------------------------------------------
 #* Setup initial conditions of the rig
 #*----------------------------------------------------------------------------------------------------------------------
-    updateRigStatus(omni,win)
+    win.updateRigStatus()
 
 #*----------------------------------------------------------------------------------------------------------------------
 #* Parse test arguments
