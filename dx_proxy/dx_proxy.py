@@ -199,7 +199,6 @@ async def remote_client_task(host: str,
             cluster = from_.split("-", 1)[0]
             #newline=f"DX de LU7DZ:    {freq}  {callsign}           {mode}    {snr} dB  {speed} WPM  {activity}      {timestamp}   fm:{cluster}#"
             newline=f"DX de LU7DZ:    {freq}  {callsign}           {mode}    {snr} dB  {speed} WPM  fm:{cluster}#      {timestamp}   fm:{cluster}#"
-
             print(newline,end="\n")
             await broadcast_to_clients(newline)
 
