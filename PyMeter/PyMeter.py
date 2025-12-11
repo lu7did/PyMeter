@@ -46,6 +46,7 @@ from PyQt5.QtWidgets import (
 
 flagEnd = False
 mutex=False
+lastCmd=""
 
 def get_attribute(rig):
     """
@@ -187,7 +188,9 @@ class VUMeter(QWidget):
         self._enabled = bool(enabled)
         self.update()
 
-
+#*--------------------------------------------------------------------------------------
+#* GUI Handler classes
+#*--------------------------------------------------------------------------------------
 class LedIndicator(QWidget):
     """Simple circular LED indicator. Use set_on(True/False)."""
 
@@ -230,7 +233,9 @@ class LedIndicator(QWidget):
         painter.setBrush(brush)
         painter.drawEllipse(x, y, d, d)
 
-
+#*--------------------------------------------------------------------------------------
+#* GUI Handler classes
+#*--------------------------------------------------------------------------------------
 class LedButton(QWidget):
     """Composite widget: a QPushButton with a small LedIndicator beside it.
 
@@ -310,8 +315,9 @@ class LedButton(QWidget):
             pass
 
 
-
-
+#*--------------------------------------------------------------------------------------
+#* GUI Handler classes
+#*--------------------------------------------------------------------------------------
 class VFOButton(LedButton):
     """Toggle between VFOA and VFOB labels, with LED showing green for A and red for B."""
 
@@ -333,7 +339,9 @@ class VFOButton(LedButton):
                 self._button.setText("VFOA")
                 self._led.set_on(True)
 
-
+#*--------------------------------------------------------------------------------------
+#* GUI Handler classes
+#*--------------------------------------------------------------------------------------
 class SwapButton(LedButton):
     """Momentary action button for swapping VFOs: blinks red and emits swap event."""
 
@@ -360,6 +368,9 @@ class SwapButton(LedButton):
             self._button.setEnabled(True)
         except Exception:
             pass
+#*--------------------------------------------------------------------------------------
+#* GUI Handler classes
+#*--------------------------------------------------------------------------------------
 class TuneButton(LedButton):
     """Momentary button: turns LED vivid red for 2s on click then returns to green."""
 
@@ -378,10 +389,8 @@ class TuneButton(LedButton):
 
 #*--- TUNE CAT command
 
-        print(f"Tunning {self.win.omni.Rig1.RigType}")
         resp=self.win.SendCAT(self.win.omni.Rig1,"AC002;",0,";")
-        print(f"tune.onclick(): CAT ended response {resp}")
-        #QTimer.singleShot(2000, self._restore)
+        QTimer.singleShot(1000, self._restore)
         self._restore()
 
 
@@ -393,7 +402,6 @@ class TuneButton(LedButton):
 
 
 class OmniRigEvents:
-
    defaultNamedNotOptArg = pythoncom.Empty
    win=None
 
@@ -401,11 +409,13 @@ class OmniRigEvents:
        print("Omnirig event initialized")
 
    def OnCustomReply(self,RigNumber=defaultNamedNotOptArg,Command=defaultNamedNotOptArg,Reply=defaultNamedNotOptArg):
-       global mutex
+       global mutex,lastCmd
        try:
           reply_bytes = bytes(Reply)
+          lastCmd=reply_bytes
        except TypeError:
           reply_bytes = Reply
+          lastCmd=""
        mutex=False
        print(f"Procesó [CustomReply] Rig={RigNumber} Cmd={Command!r} Reply={reply_bytes!r} MUTEX({mutex})")
 
@@ -581,10 +591,7 @@ class MainWindow(QMainWindow):
 
         # connect antenna handler
         self.ant_group.buttonClicked.connect(self._on_ant_changed)
-
-#*--- Tune CAT AC002;
         self.tune._setMainWindow(self)
-
         grid.addLayout(ant_layout, 3, 0, Qt.AlignLeft)
 
         # rig selection controls stacked to the right aligned with Signal/Power/SWR
@@ -687,7 +694,7 @@ class MainWindow(QMainWindow):
 
         self.resize(360, 100)
     # ----------------------------------------------------------------------
-    # CREAR OBJETO COM
+    # CREAR OBJETO COM proceso con OmniRig
     # ----------------------------------------------------------------------
 
         pythoncom.CoInitialize()
@@ -695,13 +702,11 @@ class MainWindow(QMainWindow):
 
         #* DEBUG Make Settings window visible --- self.omni.DialogVisible=Tru
         OmniRigEvents.win=self
-        OmniRigEvents.mutex=False
 
         self.rig1 = self.omni.Rig1
         self.rig2 = self.omni.Rig2
 
 
-    # -----------------[Start GUI operation ]-------------------------------
 #*--------------------------------------------------------------------------------------
 #* OmniRig handler classes
 #*--------------------------------------------------------------------------------------
@@ -966,15 +971,6 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
-    def _on_tune_clicked(self, button) -> None:
-
-        try:
-            #self.tune._on_clicked(button)
-            print(f"Tune button clicked")
-
-        except Exception:
-            pass
-   
 
     def _on_ant_changed(self, button) -> None:
         """Handler called when antenna selection changes."""
@@ -1052,7 +1048,10 @@ class MainWindow(QMainWindow):
                 print(f"Volume level handled (slider={int(value)}): {disp}")
                 CATcmd=f"AG0{value:03d};"
                 resp=self.SendCAT(self.omni.Rig1,CATcmd,0,";")
+                #QTimer.singleShot(1000, self._CATdelay)
                 print(f"handle_slider_change(): CAT {CATcmd} ended response {resp}")
+                resp=self.SendCAT(self.omni.Rig1,"AG0;",0,";")
+                print(f"Valor corriente del cursor de volumen {resp}")
 
             else:
                 return
@@ -1068,6 +1067,10 @@ class MainWindow(QMainWindow):
             self._refresh_sliders()
         except Exception:
             pass
+
+
+    def _CATdelay(self) -> None:
+        pass
 
     def _refresh_sliders(self) -> None:
         """Refresh displayed labels/images for both sliders from current slider values."""
@@ -1169,18 +1172,19 @@ class MainWindow(QMainWindow):
 
     def SendCAT(self,rig, command_str,reply_length,reply_end):
 
-       global mutex
+       global mutex,lastCmd
        command_bytes = command_str.encode("ascii")
        print(f"Received CAT[{command_bytes}]")
        mutex=True       
        rig.SendCustomCommand(command_bytes,reply_length,reply_end)
+       lastCmd=""
 
        try:
-           while True:
+           while mutex==True:
                pythoncom.PumpWaitingMessages()
                if mutex == False:
-                  print(f"Respuesta ({command_bytes})")
-                  return command_bytes
+                  print(f"Respuesta ({lastCmd})")
+                  return lastCmd
        except Exception:
            pass
 
