@@ -124,7 +124,7 @@ async def remote_client_task(host: str,
     print(f"[REMOTE] Conectado a {host}:{port}", file=sys.stderr)
 
     # Enviamos una línea inicial para activar al servidor (por ejemplo CRLF)
-    init_string="LU7DZ"
+    init_string="LT7D"
     try:
         to_send = (init_string + "\r\n").encode(errors="ignore")
         writer.write(to_send)
@@ -198,7 +198,8 @@ async def remote_client_task(host: str,
             #print(line)
             cluster = from_.split("-", 1)[0]
             #newline=f"DX de LU7DZ:    {freq}  {callsign}           {mode}    {snr} dB  {speed} WPM  {activity}      {timestamp}   fm:{cluster}#"
-            newline=f"DX de LU7DZ:    {freq}  {callsign}           {mode}    {snr} dB  {speed} WPM  fm:{cluster}#      {timestamp}   fm:{cluster}#"
+            #newline=f"DX de LT7D:    {freq}  {callsign}           {mode}    {snr} dB  {speed} WPM  fm:{cluster}#      {timestamp}   fm:{cluster}#"
+            newline=f"DX de LT7D:    {freq}  {callsign}           {mode}    {int(snr):2d} dB  {speed} WPM CQ      {timestamp} fm:{cluster}#"
             print(newline,end="\n")
             await broadcast_to_clients(newline)
 
