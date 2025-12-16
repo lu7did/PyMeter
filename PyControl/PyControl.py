@@ -602,6 +602,57 @@ def build_window() -> QWidget:
     setattr(win, 'mute', mute)
     setattr(win, 'split', split)
 
+    # helper methods to update rig row fields programmatically
+    def set_rig_name(index: int, name: str) -> None:
+        """Set the display name for rig row 1 or 2."""
+        try:
+            if int(index) == 1:
+                rig1_name.setText(str(name))
+            else:
+                rig2_name.setText(str(name))
+        except Exception:
+            pass
+
+    def set_rig_led_color(index: int, color_on: tuple[int, int, int] | list[int], on: bool = True) -> None:
+        """Set the LED on-color for the rig status LED and optionally its on/off state."""
+        try:
+            if int(index) == 1:
+                led = rig1_led
+            else:
+                led = rig2_led
+            if color_on is not None:
+                led.set_color_on(tuple(color_on))
+            led.set_on(bool(on))
+        except Exception:
+            pass
+
+    def set_rig_freq(index: int, hz: int) -> None:
+        """Set the frequency label for the rig row. hz is an integer number of Hz.
+        Display is formatted with thousands separators followed by a space and 'MHz'."""
+        try:
+            txt = f"{int(hz):,d} MHz"
+            if int(index) == 1:
+                rig1_freq.setText(txt)
+            else:
+                rig2_freq.setText(txt)
+        except Exception:
+            pass
+
+    def set_rig_mode(index: int, mode: str) -> None:
+        """Set the mode label for the rig row (e.g., USB, LSB)."""
+        try:
+            if int(index) == 1:
+                rig1_mode.setText(str(mode))
+            else:
+                rig2_mode.setText(str(mode))
+        except Exception:
+            pass
+
+    setattr(win, 'set_rig_name', set_rig_name)
+    setattr(win, 'set_rig_led_color', set_rig_led_color)
+    setattr(win, 'set_rig_freq', set_rig_freq)
+    setattr(win, 'set_rig_mode', set_rig_mode)
+
     # expose the rig table widgets for external manipulation
     setattr(win, 'rig_group', rig_group)
     setattr(win, 'rig1_radio', rig1_radio)
