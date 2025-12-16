@@ -145,8 +145,8 @@ class VUMeter(QWidget):
         gap = 2
         d = max(2, self._led_diameter)
         total_w = self._segments * d + (self._segments - 1) * gap
-        # center the row horizontally
-        start_x = int(max(2, (w - total_w) / 2))
+        # align the row to the left (small left margin) so LEDs start under the Signal label
+        start_x = 4
         # vertically center LEDs
         y = int((h - d) / 2)
         lit_count = int(round((self._value / 255.0) * self._segments))
