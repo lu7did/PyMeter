@@ -1,4 +1,33 @@
 #!/usr/bin/env python3
+#*--------------------------------------------------------------------------------------
+#* dx_proxy
+#* Program to filter a cluster telnet stream and repost spots for a given callsign
+#* reformatted as from a local cluster
+#* Use case:
+#* The N1MM logger allows the telnet window to filter spots as comming from specific
+#* clusters with certain criterias. One of the criterias, which turned to be useful
+#* is to filter by geographic location of the cluster (i.e. SA clusters only).
+#* This is useful to reduce the large amount of unuseful spots yield by the RBN where
+#* they are reported by pairs of stations RBN-Node <-> Spotted station which aren't 
+#* workable because of CONDX. Limiting the clusters to a regional area increases the
+#* likelihood of the spot to be workable by our station. This is extremely powerful
+#* and most of the spots are actually workable, which increases the ability to work
+#* multipliers in assisted modes. However, it has a drawback, the spots on us aren't
+#* as frequent nor useful, spots on us gives a clue on where are We heard and how 
+#* strong, this information from local clusters isn't really useful.
+#* This program reads the cluster stream and when a spot on us is detected it's recasted
+#* as comming from a local cluster with the original spotter info preserved.
+#*
+#* Uses library pywin32
+#*
+#* (c) Dr. Pedro E. Colla (LU7DZ/LT7D) 2025
+#* MIT License
+#* For radioamateur uses only
+#*
+#* See dx_proxy [--help|-h] for command options
+#* 
+#*--------------------------------------------------------------------------------------
+
 import argparse
 import asyncio
 import re
@@ -6,32 +35,33 @@ import sys
 from typing import Set
 
 
-# Conjunto global de clientes conectados al servidor local
+# Pool of connected telnet clients connected
 connected_clients: Set[asyncio.StreamWriter] = set()
 clients_lock = asyncio.Lock()
 
-
+#*-----------------------------------------------------------------------------
 async def handle_local_client(reader: asyncio.StreamReader,
                               writer: asyncio.StreamWriter) -> None:
     """
-    Atiende un cliente Telnet local.
-    No se procesa lo que envíe el cliente; sólo se mantiene la conexión
-    para poder enviarle líneas que matcheen el filtro.
+    Listen for a local telnet client (likely N1MM or a local telnet consolidator like WinTelnetX
+    All info sent by the client is ignored but the connection is preserved, when a spot
+    passes the filter criteria all connected clients will be shared with the spot
+    (this is an Observer like design pattern)
     """
     peername = writer.get_extra_info("peername")
     async with clients_lock:
         connected_clients.add(writer)
-    print(f"[LOCAL] Cliente conectado desde {peername}", file=sys.stderr)
+    print(f"[LOCAL] Client connected {peername}", file=sys.stderr)
 
     try:
-        # Leemos hasta que el cliente se desconecte.
+        # Read till the telnet client disconnect.
         while True:
             data = await reader.read(1024)
             if not data:
                 break
-            # Aquí podrías implementar comandos si algún día hiciera falta.
+            # Future expansion for commands here, not implemented yet.
     except Exception as exc:
-        print(f"[LOCAL] Error con el cliente {peername}: {exc}", file=sys.stderr)
+        print(f"[LOCAL] Error client {peername}: {exc}", file=sys.stderr)
     finally:
         async with clients_lock:
             if writer in connected_clients:
@@ -41,13 +71,12 @@ async def handle_local_client(reader: asyncio.StreamReader,
             await writer.wait_closed()
         except Exception:
             pass
-        print(f"[LOCAL] Cliente desconectado {peername}", file=sys.stderr)
+        print(f"[LOCAL] Client disconnected {peername}", file=sys.stderr)
 
 
 async def broadcast_to_clients(message: str) -> None:
     """
-    Envía 'message' a todos los clientes conectados al servidor Telnet local.
-    El mensaje se envía en una sola línea terminada en CRLF.
+    message is broadcasted to all connected clients
     """
     async with clients_lock:
         if not connected_clients:
@@ -59,7 +88,7 @@ async def broadcast_to_clients(message: str) -> None:
             except Exception:
                 dead_clients.append(w)
 
-        # Hacemos drain fuera del bucle por eficiencia
+        # Drain outside the loop for efficiency
         try:
             await asyncio.gather(
                 *(w.drain() for w in connected_clients if w not in dead_clients),
@@ -68,7 +97,7 @@ async def broadcast_to_clients(message: str) -> None:
         except Exception:
             pass
 
-        # Eliminamos los clientes que fallaron
+        # Remove dead or unresponsive clients
         for w in dead_clients:
             connected_clients.remove(w)
             try:
@@ -79,13 +108,11 @@ async def broadcast_to_clients(message: str) -> None:
 
 def parse_dx_line(line: str):
     """
-    Intenta parsear una línea en el formato:
-        DX DE {FROM} {FRECUENCIA} {CALLSIGN} {MODE} ...
-    con separadores de uno o más espacios/tabs.
-
-    Devuelve (from_, freq, callsign, mode) o None si no matchea.
+    Parsed the line from the cluster:
+        DX DE {FROM} {FREQ} {CALLSIGN} {MODE} ...
+    using spaces or tabs as separators.
     """
-    # Split por uno o más espacios o tabs
+    # Split according with separator
     tokens = re.split(r'\s+', line.strip())
     if len(tokens) < 6:
         return None
@@ -111,19 +138,16 @@ async def remote_client_task(host: str,
                              filter_callsign: str,
                              init_string: str) -> None:
     """
-    Cliente Telnet hacia el servidor remoto.
-    - Tras conectar, envía una línea inicial (init_string + CRLF) para
-      "despertar" al servidor, por si espera algo antes de enviar datos.
-    - Espera hasta encontrar 'keyword' en alguna línea y responde con 'response'.
-      La keyword puede aparecer en cualquier parte de la línea.
-    - Luego procesa líneas DX y, si matchean el filtro de callsign, las
-      manda a stdout y a todos los clientes locales.
+    Connection to the cluster telnet server.
+    - Upon connection send an initial string
+    - Wait till keyword and send challenge response.
+    - Then the spot streams are processed
     """
-    print(f"[REMOTE] Conectando a {host}:{port} ...", file=sys.stderr)
+    print(f"[REMOTE] Connecting to {host}:{port} ...", file=sys.stderr)
     reader, writer = await asyncio.open_connection(host, port)
-    print(f"[REMOTE] Conectado a {host}:{port}", file=sys.stderr)
+    print(f"[REMOTE] Connected to {host}:{port}", file=sys.stderr)
 
-    # Enviamos una línea inicial para activar al servidor (por ejemplo CRLF)
+    # Initial line, now it's fixed)
     init_string="LT7D"
     try:
         to_send = (init_string + "\r\n").encode(errors="ignore")
@@ -131,7 +155,7 @@ async def remote_client_task(host: str,
         await writer.drain()
         print(f"[REMOTE] >> (init) {repr(init_string)}", file=sys.stderr)
     except Exception as exc:
-        print(f"[REMOTE] Error enviando init_string: {exc}", file=sys.stderr)
+        print(f"[REMOTE] Error sending initial string: {exc}", file=sys.stderr)
         writer.close()
         try:
             await writer.wait_closed()
@@ -139,62 +163,42 @@ async def remote_client_task(host: str,
             pass
         return
 
-    # Handshake: esperamos la palabra clave en cualquier parte del string recibido
-    #print(f"[REMOTE] Esperando palabra clave '{keyword}' ...", file=sys.stderr)
-    #try:
-    #    while True:
-    #        data = await reader.readline()
-    #        if not data:
-    #            print("[REMOTE] Conexión cerrada por el servidor durante el handshake.",
-    #                  file=sys.stderr)
-    #            writer.close()
-    #            await writer.wait_closed()
-    #            return
-    #
-    #        line = data.decode(errors="ignore").rstrip("\r\n")
-    #        print(f"[REMOTE] << {line}", file=sys.stderr)
-    #        break
-            # La keyword puede aparecer en cualquier parte del string
-            #if keyword in line:
-            #    resp = response + "\r\n"
-            #    writer.write(resp.encode(errors="ignore"))
-            #    await writer.drain()
-            #    print(f"[REMOTE] >> {response}", file=sys.stderr)
-            #    break
-    #except Exception as exc:
-    #    print(f"[REMOTE] Error durante el handshake: {exc}", file=sys.stderr)
-    #    writer.close()
-    #    try:
-    #        await writer.wait_closed()
-    #    except Exception:
-    #         pass
-    #    return
+    print("[REMOTE] Handshake completed, processing spots ...", file=sys.stderr)
 
-    print("[REMOTE] Handshake completado. Procesando líneas DX ...", file=sys.stderr)
-
-    # Bucle principal de recepción y filtrado
+    # Main loop receive, process and filter spots
     try:
         while True:
             data = await reader.readline()
             if not data:
-                print("[REMOTE] Conexión remota cerrada.", file=sys.stderr)
+                print("[REMOTE] Remote connection closed.", file=sys.stderr)
                 break
 
             line = data.decode(errors="ignore").rstrip("\r\n")
-            # Intentamos parsear como línea DX
+            # Parse spot 
             parsed = parse_dx_line(line)
             if not parsed:
-                # Línea no relevante, la ignoramos
+                # Irrelevant line, ignore it
                 continue
 
             from_, freq, callsign, mode, speed, snr, activity, timestamp = parsed
 
-            # Filtro de callsign (case-insensitive simple)
+            # Filter callsign
             if filter_callsign != "*" and callsign.upper() != filter_callsign.upper():
                 continue
 
-            # Si pasa el filtro, lo mostramos por stdout y lo enviamos a los clientes.
+            # If pass the filter show at stdout and send to clients
 
+"""
+This is the exact spacing that N1MM seems to like
+         1         2         3         4         5         6         7         8
+12345678901234567890123456789012345678901234567890123456789012345678901234567890
+DX de LU2EIC-#:  28024.7 LU7DZ        CW  5 dB 29 WPM CQ PY2PE-#    1329Z
+DX de LU2EIC-#:  28024.8 LU7DZ        CW 17 dB 29 WPM CQ DF2CK-#    1329Z
+DX de LU2EIC-#:  28024.8 LU7DZ        CW  7 dB 30 WPM CQ OK1FCJ-#   1329Z
+DX de LU2EIC-#:  28024.8 LU7DZ        CW  4 dB 30 WPM CQ HA8TKS-#   1329Z
+
+
+"""
             cluster = from_.split("-", 1)[0]
             spot=f"DX de LU2EIC-#:"
             spot=spot.ljust(15)
@@ -213,7 +217,7 @@ async def remote_client_task(host: str,
             await broadcast_to_clients(newline)
 
     except Exception as exc:
-        print(f"[REMOTE] Error en la conexión remota: {exc}", file=sys.stderr)
+        print(f"[REMOTE] Connection error: {exc}", file=sys.stderr)
     finally:
         writer.close()
         try:
@@ -224,7 +228,7 @@ async def remote_client_task(host: str,
 
 
 async def main_async(args):
-    # Iniciamos el servidor Telnet local
+    # Start the local telnet server
     server = await asyncio.start_server(
         handle_local_client,
         host="0.0.0.0",
@@ -236,7 +240,7 @@ async def main_async(args):
         addr = sock.getsockname()
         print(f"[LOCAL] Servidor Telnet escuchando en {addr}", file=sys.stderr)
 
-    # Lanzamos la tarea del cliente remoto
+    # Start the connection with the remote cluster telnet server
     remote_task = asyncio.create_task(
         remote_client_task(
             host=args.remote_host,
@@ -248,12 +252,12 @@ async def main_async(args):
         )
     )
 
-    # Mientras el cliente remoto corre, el servidor local acepta conexiones.
+    # While connected to the cluster accept local telnet connections.
     try:
         async with server:
-            await remote_task  # esperamos a que termine el remoto
+            await remote_task  # wait for remote
     finally:
-        # Cuando el remoto termina, cerramos el servidor local y los clientes
+        # When the cluster disconnect all local clients disconnects too
         server.close()
         await server.wait_closed()
         async with clients_lock:
@@ -269,50 +273,47 @@ async def main_async(args):
 def parse_args():
     parser = argparse.ArgumentParser(
         description=(
-            "Cliente/servidor Telnet: se conecta a un servidor remoto, "
-            "filtra líneas DX por CALLSIGN y reenvía las coincidencias "
-            "a clientes Telnet locales y a stdout."
+            "DX Spot filters. Filter spots looking for a callsign and re-spot as local server"
         )
     )
 
     parser.add_argument(
         "-R", "--remote-host",
         required=True,
-        help="Host del servidor Telnet remoto"
+        help="Cluster telnet server address"
     )
     parser.add_argument(
         "-P", "--remote-port",
         type=int,
         required=True,
-        help="Puerto del servidor Telnet remoto"
+        help="Cluster telnet server port"
     )
     parser.add_argument(
         "-k", "--keyword",
         required=True,
-        help="Palabra clave que se busca en cualquier parte del banner remoto"
+        help="Keyword to start the connection"
     )
     parser.add_argument(
         "-r", "--response",
         required=True,
-        help="Respuesta a enviar cuando se detecta la palabra clave"
+        help="Response to send as the connection challenge"
     )
     parser.add_argument(
         "-L", "--listen-port",
         type=int,
         required=True,
-        help="Puerto donde se levantará el servidor Telnet local"
+        help="Local telnet server port"
     )
     parser.add_argument(
         "-f", "--filter-callsign",
         required=True,
-        help="CALLSIGN a filtrar (use '*' para enviar todos)"
+        help="Callsign to look after (use '*' to resend all)"
     )
     parser.add_argument(
         "-i", "--init-string",
         default="",
         help=(
-            "Cadena inicial a enviar al servidor remoto inmediatamente "
-            "después de conectar (por defecto se envía solo CRLF)."
+            "Init string usually the station callsign "
         ),
     )
 
@@ -324,7 +325,7 @@ def main():
     try:
         asyncio.run(main_async(args))
     except KeyboardInterrupt:
-        print("\n[MAIN] Interrumpido por el usuario.", file=sys.stderr)
+        print("\n[MAIN] Interrupted by user.", file=sys.stderr)
 
 
 if __name__ == "__main__":
