@@ -91,10 +91,24 @@ def build_window() -> QWidget:
     label_signal.setContentsMargins(0, 0, 0, 2)
     layout.addWidget(label_signal)
 
-    # meter (placed close below the label)
+    # Mode selector placed on the same row as the meter (right-aligned)
+    from PyQt5.QtWidgets import QComboBox
+    from PyQt5.QtCore import Qt
+
+    mode_selector = QComboBox()
+    mode_selector.addItems(["CW", "USB", "LSB", "AM", "FM", "DIG-U", "DIG-L", "CW-R"])
+    mode_selector.setFixedWidth(110)
+    mode_selector.setCurrentIndex(0)
+    mode_selector.currentTextChanged.connect(lambda t: print(f"Mode selector changed: {t}"))
+
+    # meter row: meter at left, mode selector at right
+    meter_row = QHBoxLayout()
     meter = VUMeter(segments=10)
     meter.setContentsMargins(0, 0, 0, 2)
-    layout.addWidget(meter)
+    meter_row.addWidget(meter)
+    meter_row.addStretch()
+    meter_row.addWidget(mode_selector, alignment=Qt.AlignRight | Qt.AlignVCenter)
+    layout.addLayout(meter_row)
 
     # Two-row table with headers: '', rig, name, status, freq, mode
     from PyQt5.QtWidgets import QGridLayout, QRadioButton, QButtonGroup
@@ -333,18 +347,12 @@ def build_window() -> QWidget:
 
     right_group.buttonClicked.connect(_on_right_changed)
 
-    # Mode selector to the right of VFO group (compact)
-    mode_selector = QComboBox()
-    mode_selector.addItems(["CW", "USB", "LSB", "AM", "FM", "DIG-U", "DIG-L", "CW-R"])
-    mode_selector.setFixedWidth(110)
-    mode_selector.setCurrentIndex(0)
-    mode_selector.currentTextChanged.connect(lambda t: print(f"Mode selector changed: {t}"))
-
     # assemble groups row compactly so dialog width doesn't increase
     groups_row.addWidget(left_box)
+    groups_row.addStretch()
     groups_row.addWidget(mid_box)
+    groups_row.addStretch()
     groups_row.addWidget(right_box)
-    groups_row.addWidget(mode_selector, alignment=Qt.AlignVCenter)
 
     layout.addLayout(groups_row)
 
