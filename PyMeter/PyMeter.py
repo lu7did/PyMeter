@@ -96,16 +96,23 @@ def getMode(mode):
 class VUMeter(QWidget):
     """Widget that displays a VU meter using a row of LED-like segments.
 
-    Value range: 0..255 (0 -> none lit, 255 -> all lit).
+    Value range: 0..255 (0 -> none lit, 255 -> all lit). LEDs are drawn to match
+    the size of the LedIndicator used elsewhere (default diameter=8) and are
+    placed very close together (small gap) without touching.
     """
 
-    def __init__(self, segments: int = 10, parent: QWidget | None = None) -> None:
+    def __init__(self, segments: int = 10, led_diameter: int = 8, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         if segments <= 0:
             raise ValueError("segments must be > 0")
         self._segments = segments
         self._value = 0  # 0..255
-        self.setMinimumSize(QSize(240, 40))
+        # target LED diameter (matches LedIndicator default)
+        self._led_diameter = int(led_diameter)
+        # compute a sensible minimum size so LEDs are visible
+        total_w = (self._led_diameter * self._segments) + (2 * (self._segments - 1)) + 8
+        total_h = self._led_diameter + 8
+        self.setMinimumSize(QSize(max(240, total_w), max(30, total_h)))
         # precompute band mapping: first 5 green, next 3 yellow, last 2 red
         # this allows precise control over colors per LED
         self._bands = (['green'] * 5) + (['yellow'] * 3) + (['red'] * 2)
@@ -115,7 +122,8 @@ class VUMeter(QWidget):
         self._enabled = True
 
     def sizeHint(self) -> QSize:  # pragma: no cover - GUI helper
-        return QSize(320, 80)
+        # prefer a compact square-like hint based on led diameter
+        return QSize((self._led_diameter + 2) * self._segments + 16, self._led_diameter + 20)
 
     def set_value(self, value: int) -> None:
         """Set meter value in 0..255 and refresh display."""
@@ -133,20 +141,20 @@ class VUMeter(QWidget):
         painter.setRenderHint(QPainter.Antialiasing)
         w = self.width()
         h = self.height()
-        margin = 4
-        # horizontal layout: compute per-segment width and a small LED height
-        available_w = w - 2 * margin
-        gap = 4
-        seg_w = max(10, (available_w - (self._segments - 1) * gap) / self._segments)
-        led_h = max(8, min(20, h - 2 * margin))
-        y = int((h - led_h) / 2)
+        # Use a small gap between LEDs so they are very close but not touching
+        gap = 2
+        d = max(2, self._led_diameter)
+        total_w = self._segments * d + (self._segments - 1) * gap
+        # center the row horizontally
+        start_x = int(max(2, (w - total_w) / 2))
+        # vertically center LEDs
+        y = int((h - d) / 2)
         lit_count = int(round((self._value / 255.0) * self._segments))
 
         for i in range(self._segments):
-            left = margin + i * (seg_w + gap)
-            rect_w = int(seg_w)
-            rect_h = int(led_h)
-            x = int(left)
+            x = start_x + i * (d + gap)
+            rect_w = int(d)
+            rect_h = int(d)
             frac = i / max(1, self._segments - 1)
             # determine band from explicit mapping to ensure 5/3/2 distribution
             band = self._bands[i] if i < len(self._bands) else ("green" if frac < 0.4 else ("yellow" if frac < 0.75 else "red"))
@@ -158,7 +166,9 @@ class VUMeter(QWidget):
                 brush_color = on_color if i < lit_count else off_color
             painter.setPen(QPen(Qt.black, 1))
             painter.setBrush(brush_color)
-            painter.drawRoundedRect(x, y, rect_w, rect_h, 3, 3)
+            # draw rounded rect with radius half the diameter for pill/circle appearance
+            r = max(1, int(d / 2))
+            painter.drawRoundedRect(x, y, rect_w, rect_h, r, r)
 
     @staticmethod
     def _colors_for_fraction(frac: float) -> tuple[QColor, QColor]:
