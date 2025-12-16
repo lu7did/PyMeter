@@ -148,8 +148,6 @@ async def remote_client_task(host: str,
     reader, writer = await asyncio.open_connection(host, port)
     print(f"[REMOTE] Connected to {host}:{port}", file=sys.stderr)
 
-    # Initial line, now it's fixed)
-
     # This is the exact spacing that N1MM seems to like
     #          1         2         3         4         5         6         7         8
     # 12345678901234567890123456789012345678901234567890123456789012345678901234567890
@@ -158,8 +156,7 @@ async def remote_client_task(host: str,
     # DX de LU2EIC-#:  28024.8 LU7DZ        CW  7 dB 30 WPM CQ OK1FCJ-#   1329Z
     # DX de LU2EIC-#:  28024.8 LU7DZ        CW  4 dB 30 WPM CQ HA8TKS-#   1329Z
 
-
-    init_string="LT7D"
+    init_string=response
     try:
         to_send = (init_string + "\r\n").encode(errors="ignore")
         writer.write(to_send)
@@ -201,10 +198,10 @@ async def remote_client_task(host: str,
             # If pass the filter show at stdout and send to clients
 
             cluster = from_.split("-", 1)[0]
-            spot=f"DX de LU2EIC-#:"
+            spot=f"DX de {keyword}-#:"
             spot=spot.ljust(15)
             f=freq.rjust(9)
-            cl=f"LU7DZ"
+            cl=f"{filter_callsign}"
             cl=cl.replace("#","")
             cl=cl.ljust(13)
             snr=snr.rjust(2)
@@ -241,6 +238,7 @@ async def main_async(args):
         addr = sock.getsockname()
         print(f"[LOCAL] Servidor Telnet escuchando en {addr}", file=sys.stderr)
 
+    print(f"Connection arguments remote({args.remote_host}:{args.remote_port}) keyword({args.keyword}) response({args.response}) filter({args.filter_callsign}) init({args.init_string})")
     # Start the connection with the remote cluster telnet server
     remote_task = asyncio.create_task(
         remote_client_task(
