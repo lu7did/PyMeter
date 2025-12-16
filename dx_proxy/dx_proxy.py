@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 #*--------------------------------------------------------------------------------------
 #* dx_proxy
@@ -148,6 +149,16 @@ async def remote_client_task(host: str,
     print(f"[REMOTE] Connected to {host}:{port}", file=sys.stderr)
 
     # Initial line, now it's fixed)
+
+    # This is the exact spacing that N1MM seems to like
+    #          1         2         3         4         5         6         7         8
+    # 12345678901234567890123456789012345678901234567890123456789012345678901234567890
+    # DX de LU2EIC-#:  28024.7 LU7DZ        CW  5 dB 29 WPM CQ PY2PE-#    1329Z
+    # DX de LU2EIC-#:  28024.8 LU7DZ        CW 17 dB 29 WPM CQ DF2CK-#    1329Z
+    # DX de LU2EIC-#:  28024.8 LU7DZ        CW  7 dB 30 WPM CQ OK1FCJ-#   1329Z
+    # DX de LU2EIC-#:  28024.8 LU7DZ        CW  4 dB 30 WPM CQ HA8TKS-#   1329Z
+
+
     init_string="LT7D"
     try:
         to_send = (init_string + "\r\n").encode(errors="ignore")
@@ -166,6 +177,7 @@ async def remote_client_task(host: str,
     print("[REMOTE] Handshake completed, processing spots ...", file=sys.stderr)
 
     # Main loop receive, process and filter spots
+
     try:
         while True:
             data = await reader.readline()
@@ -188,17 +200,6 @@ async def remote_client_task(host: str,
 
             # If pass the filter show at stdout and send to clients
 
-"""
-This is the exact spacing that N1MM seems to like
-         1         2         3         4         5         6         7         8
-12345678901234567890123456789012345678901234567890123456789012345678901234567890
-DX de LU2EIC-#:  28024.7 LU7DZ        CW  5 dB 29 WPM CQ PY2PE-#    1329Z
-DX de LU2EIC-#:  28024.8 LU7DZ        CW 17 dB 29 WPM CQ DF2CK-#    1329Z
-DX de LU2EIC-#:  28024.8 LU7DZ        CW  7 dB 30 WPM CQ OK1FCJ-#   1329Z
-DX de LU2EIC-#:  28024.8 LU7DZ        CW  4 dB 30 WPM CQ HA8TKS-#   1329Z
-
-
-"""
             cluster = from_.split("-", 1)[0]
             spot=f"DX de LU2EIC-#:"
             spot=spot.ljust(15)
