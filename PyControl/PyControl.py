@@ -947,7 +947,6 @@ def build_window(debug: bool = False) -> QWidget:
         getattr(tune, '_setMainWindow', lambda w: None)(win)
     except Exception:
         pass
-    split = SwapButton('Split')
 
     # Set logical state to RX (0) for buttons if supported
     try:
@@ -959,17 +958,12 @@ def build_window(debug: bool = False) -> QWidget:
     except Exception:
         pass
     try:
-        split.set_state(0)
-        splitState=0
-    except Exception:
-        pass
-    try:
         tune.set_state(0)
     except Exception:
         pass
 
     # Ensure default LED visuals are dark/off initially
-    for b in (tr, mute, split, tune):
+    for b in (tr, mute, tune):
         try:
             led = getattr(b, '_led', None)
             if led is not None:
@@ -983,9 +977,6 @@ def build_window(debug: bool = False) -> QWidget:
                     pass
                 try:
                     led.set_on(False)
-                    if b==split:
-                       omni.Rig1.Split=PM_SPLITOFF
-                       omni.Rig2.Split=PM_SPLITOFF
                 except Exception:
                     pass
         except Exception:
@@ -1005,9 +996,6 @@ def build_window(debug: bool = False) -> QWidget:
     mute_cb = QCheckBox()
     mute_cb.setChecked(True)
     mute_cb.setVisible(debug)
-    split_cb = QCheckBox()
-    split_cb.setChecked(True)
-    split_cb.setVisible(debug)
     tune_cb = QCheckBox()
     tune_cb.setChecked(True)
     tune_cb.setVisible(debug)
@@ -1059,8 +1047,6 @@ def build_window(debug: bool = False) -> QWidget:
         _set_button_enabled(tr, tr_cb, enabled)
     def set_mute_enabled(enabled: bool) -> None:
         _set_button_enabled(mute, mute_cb, enabled)
-    def set_split_enabled(enabled: bool) -> None:
-        _set_button_enabled(split, split_cb, enabled)
     def set_tune_enabled(enabled: bool) -> None:
         _set_button_enabled(tune, tune_cb, enabled)
 
@@ -1068,7 +1054,6 @@ def build_window(debug: bool = False) -> QWidget:
     try:
         tr_cb.stateChanged.connect(lambda s: set_tr_enabled(s == 2))
         mute_cb.stateChanged.connect(lambda s: set_mute_enabled(s == 2))
-        split_cb.stateChanged.connect(lambda s: set_split_enabled(s == 2))
         tune_cb.stateChanged.connect(lambda s: set_tune_enabled(s == 2))
     except Exception:
         pass
@@ -1078,15 +1063,12 @@ def build_window(debug: bool = False) -> QWidget:
     btn_row.addWidget(tr)
     btn_row.addWidget(mute_cb)
     btn_row.addWidget(mute)
-    btn_row.addWidget(split_cb)
-    btn_row.addWidget(split)
     btn_row.addWidget(tune_cb)
     btn_row.addWidget(tune)
 
     # expose APIs
     setattr(win, 'set_tr_enabled', set_tr_enabled)
     setattr(win, 'set_mute_enabled', set_mute_enabled)
-    setattr(win, 'set_split_enabled', set_split_enabled)
     setattr(win, 'set_tune_enabled', set_tune_enabled)
 
     # Override button actions: disconnect any existing handlers and replace with simple console log
@@ -1110,7 +1092,6 @@ def build_window(debug: bool = False) -> QWidget:
 
     _bind_simple(tr, 'RX')
     _bind_simple(mute, 'Mute')
-    _bind_simple(split, 'Split')
     _bind_simple(tune, 'Tune')
 
     # container frame to hold the button row
@@ -1138,7 +1119,6 @@ def build_window(debug: bool = False) -> QWidget:
     setattr(win, 'tr', tr)
     setattr(win, 'tune', tune)
     setattr(win, 'mute', mute)
-    setattr(win, 'split', split)
 
     # helper methods to update rig row fields programmatically
     def set_rig_name(index: int, name: str) -> None:
