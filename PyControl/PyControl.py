@@ -299,6 +299,10 @@ def build_window() -> QWidget:
 
     power_label = QLabel('Power')
     power_label.setMinimumWidth(50)
+    # checkbox to toggle enabled state for the power control group
+    from PyQt5.QtWidgets import QCheckBox
+    power_enable_cb = QCheckBox('Enabled')
+    power_enable_cb.setChecked(True)
     power_slider = QSlider(Qt.Horizontal)
     power_slider.setRange(0, 255)
     power_slider.setValue(0)
@@ -338,6 +342,7 @@ def build_window() -> QWidget:
             win._power_enabled = en
             power_slider.setEnabled(en)
             set_btn.setEnabled(en)
+            power_enable_cb.setChecked(en)
             # gray out text when disabled
             if en:
                 power_label.setStyleSheet("")
@@ -351,6 +356,13 @@ def build_window() -> QWidget:
     set_power_enabled(True)
     set_btn.clicked.connect(_on_power_set)
 
+    # wire checkbox to enable/disable
+    try:
+        power_enable_cb.stateChanged.connect(lambda s: set_power_enabled(s == 2))
+    except Exception:
+        pass
+
+    power_row.addWidget(power_enable_cb)
     power_row.addWidget(power_label)
     power_row.addWidget(power_slider)
     power_row.addWidget(power_value)
