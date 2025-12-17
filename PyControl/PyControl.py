@@ -47,6 +47,8 @@ PM_DIG_U   = 0x08000000
 PM_DIG_L   = 0x10000000
 PM_AM      = 0x20000000
 PM_FM      = 0x40000000
+PM_VFOA    = 0x00000800
+PM_VFOB    = 0x00001000
 
 try:
    import pythoncom
@@ -64,6 +66,8 @@ try:
    split_cb=None
    tune_cb=None
    splitState=0
+   rig1_split_cb=None
+   rig2_split_cb=None
 
 except:
    print("Not a Win32 environment, dependencies not satisfied, only GUI evaluation mode")
@@ -112,6 +116,27 @@ else:
 
 
 #*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=
+#*------------------------------------------------------------------------------------
+#* Set Vfo A or B
+#*------------------------------------------------------------------------------------
+def setVfo(rig,mVfo):
+    global omni, win,mutex,power_enable_cb,volume_enable_cb,left_enable_cb,mid_enable_cb,right_enable_cb,tr_cb,mute_cb,split_cb,tune_cb,splitState
+    try:
+       if linux_flag:
+          return 
+
+       if mVfo == "VFO A":
+          rig.Vfo = PM_VFOA
+          return
+       if mVfo == "VFO B":
+          rig.Vfo = PM_VFOB
+          return
+    except Exception as e:
+       print(f"setVfo() exception {e}")
+       pass
+    print(f"ERROR. Invalid VFO code given. Ignored")
+    return 
+
 def setPush(n):
     global omni, win,mutex,power_enable_cb,volume_enable_cb,left_enable_cb,mid_enable_cb,right_enable_cb,tr_cb,mute_cb,split_cb,tune_cb,splitState
     try:
@@ -122,12 +147,30 @@ def setPush(n):
                 
        return n
     except Exception as e:
-       print(f"updateStatus() exception {e}")
+       print(f"setPush() exception {e}")
        pass
     return n
 
+def updateSplit():
+    global omni, win,mutex,power_enable_cb,volume_enable_cb,left_enable_cb,mid_enable_cb,right_enable_cb,tr_cb,mute_cb,split_cb,tune_cb,rig1_split_cb,rig2_split_cb
+    if linux_flag:
+       return
+    try:
+       if rig1_split_cb.isChecked():
+          omni.Rig1.Split=PM_SPLITON
+       else:
+          omni.Rig1.Split=PM_SPLITOFF
+
+       if rig2_split_cb.isChecked():
+          omni.Rig2.Split=PM_SPLITON
+       else:
+          omni.Rig2.Split=PM_SPLITOFF
+    except Exception as e:
+       print(f"updateSplit() exception {e}")
+       pass
+
 def updateStatus():
-    global omni, win,mutex,power_enable_cb,volume_enable_cb,left_enable_cb,mid_enable_cb,right_enable_cb,tr_cb,mute_cb,split_cb,tune_cb
+    global omni, win,mutex,power_enable_cb,volume_enable_cb,left_enable_cb,mid_enable_cb,right_enable_cb,tr_cb,mute_cb,split_cb,tune_cb,rig1_split_cb,rig2_split_cb
     if linux_flag:
        return
     try:
@@ -161,7 +204,7 @@ def updateStatus():
 
              tr_cb.setChecked(True)
              mute_cb.setChecked(True)
-             split_cb.setChecked(True)
+             #split_cb.setChecked(True)
              tune_cb.setChecked(True)
 
        else:
@@ -173,7 +216,7 @@ def updateStatus():
 
              tr_cb.setChecked(False)
              mute_cb.setChecked(False)
-             split_cb.setChecked(True)
+             #split_cb.setChecked(True)
              tune_cb.setChecked(False)
 
 
@@ -298,7 +341,7 @@ SwapButton = getattr(_pym, 'SwapButton')
 
 def build_window(debug: bool = False) -> QWidget:
 
-    global linux_flag,omni,win,power_enable_cb,volume_enable_cb,right_enable_cb,mid_enable_cb,left_enable_cb,tr_cb,mute_cb,split_cb,tune_cb,splitState
+    global linux_flag,omni,win,power_enable_cb,volume_enable_cb,right_enable_cb,mid_enable_cb,left_enable_cb,tr_cb,mute_cb,split_cb,tune_cb,splitState,rig1_split_cb,rig2_split_cb
 
 
     # ----------------------------------------------------------------------
@@ -425,6 +468,7 @@ def build_window(debug: bool = False) -> QWidget:
                 signal_led.set_on(True)
                 win._signal_led_state = not getattr(win, '_signal_led_state', False)
                 updateStatus()
+                updateSplit()
             except Exception:
                 pass
         timer = QTimer()
@@ -540,11 +584,24 @@ def build_window(debug: bool = False) -> QWidget:
         try:
             if rig1_radio.isChecked():
                 sel = 'rig1'
+                if rig1_split_cb.isChecked():
+                   omni.Rig1.Split=PM_SPLITON
+                   print(f"Rig ({omni.Rig1.RigType}) Split(ON)")
+                else:
+                   omni.Rig1.Split=PM_SPLITOFF
+                   print(f"Rig ({omni.Rig1.RigType}) Split(OFF)")
             elif rig2_radio.isChecked():
                 sel = 'rig2'
+                if rig2_split_cb.isChecked():
+                   omni.Rig2.Split=PM_SPLITON
+                   print(f"Rig ({omni.Rig1.RigType}) Split(ON)")
+                else:
+                   omni.Rig2.Split=PM_SPLITOFF
+                   print(f"Rig ({omni.Rig1.RigType}) Split(ON)")
             else:
                 sel = 'unknown'
             print(f"Rig selected: {sel}")
+            
             _save_key('RIG', sel)
         except Exception:
             pass
@@ -792,7 +849,12 @@ def build_window(debug: bool = False) -> QWidget:
     def _on_right_changed(button) -> None:
         try:
             txt = button.text()
-            print(f"VFO selected: {txt}")
+            if rig1_radio.isChecked():
+               print(f"Rig({omni.Rig1.RigType}) VFO selected: {txt}")
+               setVfo(omni.Rig1,txt)
+            else:
+               print(f"Rig({omni.Rig2.RigType}) VFO selected: {txt}")
+               setVfo(omni.Rig2,txt)
             _save_key('VFO', txt)
         except Exception:
             pass
