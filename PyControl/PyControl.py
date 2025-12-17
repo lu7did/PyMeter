@@ -115,6 +115,8 @@ else:
 def setPush(n):
     global omni, win,mutex,power_enable_cb,volume_enable_cb,left_enable_cb,mid_enable_cb,right_enable_cb,tr_cb,mute_cb,split_cb,tune_cb,splitState
     try:
+       if linux_flag:
+          return n
        if n=="Split":
           print(f"Split button pressed checked({splitState})")
                 
@@ -126,6 +128,8 @@ def setPush(n):
 
 def updateStatus():
     global omni, win,mutex,power_enable_cb,volume_enable_cb,left_enable_cb,mid_enable_cb,right_enable_cb,tr_cb,mute_cb,split_cb,tune_cb
+    if linux_flag:
+       return
     try:
        rig1=omni.Rig1
        rig2=omni.Rig2
@@ -311,12 +315,14 @@ def build_window(debug: bool = False) -> QWidget:
     # ----------------------------------------------------------------------
     # Creates COM object to handle interaction with OmniRig
     # ----------------------------------------------------------------------
-
-    pythoncom.CoInitialize()
-    omni = win32com.client.DispatchWithEvents("OmniRig.OmniRigX", OmniRigEvents)
-    rig1 = omni.Rig1
-    rig2 = omni.Rig2
-    print(f"Initialized OmniRig rig1({omni.Rig1.RigType}) rig2({omni.Rig2.RigType})")
+    if not linux_flag:
+       pythoncom.CoInitialize()
+       omni = win32com.client.DispatchWithEvents("OmniRig.OmniRigX", OmniRigEvents)
+       rig1 = omni.Rig1
+       rig2 = omni.Rig2
+       print(f"Initialized OmniRig rig1({omni.Rig1.RigType}) rig2({omni.Rig2.RigType})")
+    else:
+       print(f"Omnirig initialization skipped (non Windows environment)")
 
 
 
@@ -429,7 +435,7 @@ def build_window(debug: bool = False) -> QWidget:
         pass
 
     # Two-row table with headers: '', rig, name, status, freq, mode
-    from PyQt5.QtWidgets import QGridLayout, QRadioButton, QButtonGroup
+    from PyQt5.QtWidgets import QGridLayout, QRadioButton, QButtonGroup, QCheckBox
     from PyQt5.QtCore import Qt
 
     grid = QGridLayout()
@@ -438,7 +444,7 @@ def build_window(debug: bool = False) -> QWidget:
     grid.setHorizontalSpacing(12)
     grid.setVerticalSpacing(4)
 
-    headers = ['', 'rig', 'name', 'status', 'freq', 'mode']
+    headers = ['', 'rig', 'name', 'status', 'freq', 'mode', 'split']
     for c, h in enumerate(headers):
         lbl = QLabel(f"<b>{h}</b>") if h else QLabel('')
         lbl.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
@@ -480,6 +486,17 @@ def build_window(debug: bool = False) -> QWidget:
     rig1_freq.setMinimumWidth(120)
     grid.addWidget(rig1_freq, 1, 4, alignment=Qt.AlignRight | Qt.AlignVCenter)
     grid.addWidget(rig1_mode, 1, 5, alignment=Qt.AlignLeft | Qt.AlignVCenter)
+    # Split checkbox for rig1
+    rig1_split_cb = QCheckBox('Split')
+    rig1_split_cb.setChecked(False)
+    def _on_rig1_split(checked: bool) -> None:
+        try:
+            print(f"Rig1 Split: {bool(checked)}")
+            _save_key('RIG1_SPLIT', '1' if checked else '0')
+        except Exception:
+            pass
+    rig1_split_cb.toggled.connect(_on_rig1_split)
+    grid.addWidget(rig1_split_cb, 1, 6, alignment=Qt.AlignCenter)
 
     # Row 2: rig2
     rig2_label = QLabel('rig2')
@@ -502,6 +519,17 @@ def build_window(debug: bool = False) -> QWidget:
     grid.addWidget(rig2_led, 2, 3, alignment=Qt.AlignCenter)
     grid.addWidget(rig2_freq, 2, 4, alignment=Qt.AlignRight | Qt.AlignVCenter)
     grid.addWidget(rig2_mode, 2, 5, alignment=Qt.AlignLeft | Qt.AlignVCenter)
+    # Split checkbox for rig2
+    rig2_split_cb = QCheckBox('Split')
+    rig2_split_cb.setChecked(False)
+    def _on_rig2_split(checked: bool) -> None:
+        try:
+            print(f"Rig2 Split: {bool(checked)}")
+            _save_key('RIG2_SPLIT', '1' if checked else '0')
+        except Exception:
+            pass
+    rig2_split_cb.toggled.connect(_on_rig2_split)
+    grid.addWidget(rig2_split_cb, 2, 6, alignment=Qt.AlignCenter)
 
     # connect rig selection event
     def _on_rig_selected(button) -> None:
