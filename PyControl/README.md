@@ -107,3 +107,34 @@ Notas
 - El archivo PyControl.ini se crea/actualiza en el directorio PyControl; no se sube automáticamente a repositorio remoto por políticas locales.
 
 Si se desea una sección adicional con ejemplos de código de integración o la lista completa de claves posibles en PyControl.ini, puedo añadirla.
+
+Formato de PyControl.ini
+-----------------------
+El archivo de configuración se encuentra en PyControl/PyControl.ini y tiene un formato simple KEY=VALUE por línea. Las claves actualmente reconocidas por la aplicación son:
+
+- RIG: 'rig1' o 'rig2'
+- LEFT: 'SWR', 'Power' o 'Signal'
+- ANT: 'ant 1' o 'ant 2'
+- VFO: 'VFO A' o 'VFO B'
+- MODE: uno de 'CW','USB','LSB','AM','FM','DIG-U','DIG-L','CW-R'
+- POWER: entero 0..255 (persistido al pulsar 'Set')
+- VOLUME: entero 0..255 (persistido al pulsar 'Set')
+
+Ejemplo de PyControl.ini:
+RIG=rig1
+LEFT=Signal
+ANT=ant 1
+VFO=VFO A
+MODE=CW
+POWER=0
+VOLUME=0
+
+Ejemplo de ejecución
+--------------------
+- Ejecutar en modo test en Linux/macOS (no requiere pywin32):
+    python3 PyControl.py --linux --test
+
+- Ejecutar en Windows integrando con OmniRig (requiere pywin32/OmniRig y permisos adecuados):
+    python3 PyControl.py
+
+Estos comandos deben ejecutarse desde el directorio PyControl o usando la ruta completa al script. Asegúrate de instalar las dependencias (PyQt5 y opcionales pywin32) en un entorno virtual antes de ejecutar.
