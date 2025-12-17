@@ -531,13 +531,76 @@ def build_window() -> QWidget:
     right_group.buttonClicked.connect(_on_right_changed)
 
     # assemble groups row compactly so dialog width doesn't increase
+    # add small checkboxes (no labels) to control Enabled state per group
+    from PyQt5.QtWidgets import QCheckBox
+    left_enable_cb = QCheckBox()
+    left_enable_cb.setChecked(True)
+    mid_enable_cb = QCheckBox()
+    mid_enable_cb.setChecked(True)
+    right_enable_cb = QCheckBox()
+    right_enable_cb.setChecked(True)
+
+    groups_row.addWidget(left_enable_cb)
     groups_row.addWidget(left_box)
     groups_row.addStretch()
+    groups_row.addWidget(mid_enable_cb)
     groups_row.addWidget(mid_box)
     groups_row.addStretch()
+    groups_row.addWidget(right_enable_cb)
     groups_row.addWidget(right_box)
 
     layout.addLayout(groups_row)
+
+    # helpers to enable/disable each radio group and gray out labels when disabled
+    def set_left_enabled(enabled: bool) -> None:
+        try:
+            en = bool(enabled)
+            for b in (rb_swr, rb_power, rb_signal):
+                b.setEnabled(en)
+                b.setStyleSheet("" if en else "color: #888888;")
+            left_enable_cb.setChecked(en)
+            # persist left enabled? not required
+            setattr(win, '_left_enabled', en)
+        except Exception:
+            pass
+
+    def set_mid_enabled(enabled: bool) -> None:
+        try:
+            en = bool(enabled)
+            for b in (rb_ant1, rb_ant2):
+                b.setEnabled(en)
+                b.setStyleSheet("" if en else "color: #888888;")
+            mid_enable_cb.setChecked(en)
+            setattr(win, '_mid_enabled', en)
+        except Exception:
+            pass
+
+    def set_right_enabled(enabled: bool) -> None:
+        try:
+            en = bool(enabled)
+            for b in (rb_vfoa, rb_vfob):
+                b.setEnabled(en)
+                b.setStyleSheet("" if en else "color: #888888;")
+            right_enable_cb.setChecked(en)
+            setattr(win, '_right_enabled', en)
+        except Exception:
+            pass
+
+    # wire checkboxes to helpers
+    try:
+        left_enable_cb.stateChanged.connect(lambda s: set_left_enabled(s == 2))
+        mid_enable_cb.stateChanged.connect(lambda s: set_mid_enabled(s == 2))
+        right_enable_cb.stateChanged.connect(lambda s: set_right_enabled(s == 2))
+    except Exception:
+        pass
+
+    # expose APIs on window
+    setattr(win, 'set_left_enabled', set_left_enabled)
+    setattr(win, 'left_enabled', lambda: getattr(win, '_left_enabled', True))
+    setattr(win, 'set_mid_enabled', set_mid_enabled)
+    setattr(win, 'mid_enabled', lambda: getattr(win, '_mid_enabled', True))
+    setattr(win, 'set_right_enabled', set_right_enabled)
+    setattr(win, 'right_enabled', lambda: getattr(win, '_right_enabled', True))
 
     # Apply persisted configuration (if any) to initialize control states
     try:
