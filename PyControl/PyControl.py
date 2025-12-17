@@ -309,6 +309,9 @@ def build_window() -> QWidget:
 
     def _on_power_change(v: int) -> None:
         try:
+            # do nothing if controls are disabled
+            if not getattr(win, '_power_enabled', True):
+                return
             power_value.setText(str(int(v)))
             print(f"Power slider changed: {int(v)}")
         except Exception:
@@ -318,11 +321,34 @@ def build_window() -> QWidget:
     # connect Set button to emit a simple console event with current slider value and persist
     def _on_power_set(_=False):
         try:
+            if not getattr(win, '_power_enabled', True):
+                return
             val = int(power_slider.value())
             print(f"Set button pressed: power={val}")
             _save_key('POWER', str(val))
         except Exception:
             pass
+    set_btn.clicked.connect(_on_power_set)
+
+    # enable/disable helper for the power control group
+    win._power_enabled = True
+    def set_power_enabled(enabled: bool) -> None:
+        try:
+            en = bool(enabled)
+            win._power_enabled = en
+            power_slider.setEnabled(en)
+            set_btn.setEnabled(en)
+            # gray out text when disabled
+            if en:
+                power_label.setStyleSheet("")
+                power_value.setStyleSheet("")
+            else:
+                power_label.setStyleSheet("color: #888888;")
+                power_value.setStyleSheet("color: #888888;")
+        except Exception:
+            pass
+
+    set_power_enabled(True)
     set_btn.clicked.connect(_on_power_set)
 
     power_row.addWidget(power_label)
@@ -331,6 +357,10 @@ def build_window() -> QWidget:
     power_row.addWidget(set_btn)
 
     layout.addLayout(power_row)
+
+    # expose power control enable API
+    setattr(win, 'set_power_enabled', set_power_enabled)
+    setattr(win, 'power_enabled', lambda: getattr(win, '_power_enabled', True))
 
     # Volume control row directly below Power
     volume_row = QHBoxLayout()
