@@ -1,3 +1,16 @@
+from __future__ import annotations
+
+#*---------------------------------------------------------------------------------------------------------
+#* PyControl
+#* Simple Qt5 application providing few transceiver controls to operate them remotely
+#* Integrates with the OmniRig engine by Alex VE3NEA
+#*
+#* LU7DZ Digital Remote Station -- Southern Croix Cluster
+#*
+#* (c) Dr Pedro E. Colla 2025
+#*
+#* License MIT -- Free for radioamateur uses
+#*-----------------------------------------------------------------------------------------------------------
 """PyControl GUI application.
 
 This application composes UI widgets developed in PyMeter/PyMeter.py (VU meter,
@@ -7,7 +20,13 @@ avoiding platform-specific COM initialization when possible.
 
 Run: python PyControl.py [--test]
 """
-from __future__ import annotations
+
+"""
+Designed following the style rules in CONTEXT.md: Python 3.12, OOP,
+separation of presentation and logic, basic error handling and type hints.
+"""
+
+
 
 import sys
 import types
@@ -15,6 +34,12 @@ from pathlib import Path
 import argparse
 import importlib.util
 from typing import Any
+
+try:
+   import pythoncom
+   import win32com.client
+except:
+   print("Not a Win32 environment, dependencies not satisfied, only GUI evaluation mode")
 
 # Allow running on Linux/headless systems by passing --linux; when present
 # create proper dummy module objects for pythoncom and win32com.client so
@@ -54,6 +79,94 @@ else:
     # do not inject dummies; allow real win32com/pythoncom to be used on Windows
     pass
 
+class OmniRigEvents:
+
+   try:  
+      defaultNamedNotOptArg = pythoncom.Empty
+   except:
+      defaultNamedNotOptArg  = ""
+   win=None
+
+   def __init__(self) -> None:
+       print("Omnirig event initialized")
+
+   def OnCustomReply(self,RigNumber=defaultNamedNotOptArg,Command=defaultNamedNotOptArg,Reply=defaultNamedNotOptArg):
+       global mutex,lastCmd,linux_flag
+       if linux_flag == True: 
+          return
+       try:
+          reply_bytes = bytes(Reply)
+          lastCmd=reply_bytes
+       except TypeError:
+          reply_bytes = Reply
+          lastCmd=""
+       mutex=False
+       print(f"Procesó [CustomReply] Rig={RigNumber} Cmd={Command!r} Reply={reply_bytes!r} MUTEX({mutex})")
+
+    # Se llamará cuando cambie la visibilidad de la ventana de OmniRig
+   def OnVisibleChange(self, RigNumber):
+        global linux_flag
+        if linux_flag:
+           return
+        print(f"[EVENT] VisibleChangeEvent: rig={RigNumber}", flush=True)
+
+    # Se llamará cuando cambie el tipo de rig
+   def OnRigTypeChange(self, RigNumber):
+        global linux_flag
+        if linux_flag:
+           return
+        print(f"[EVENT] RigTypeChangeEvent: rig={RigNumber}", flush=True)
+
+   def OnStatusChange(self, RigNumber):
+        global mutex,linux_flag
+        if linux_flag:
+           return
+        try:
+            rig = self.win.omni.Rig1 if RigNumber == 1 else self.win.omni.Rig2
+            # Get_StatusStr es una propiedad del RigX
+            status = rig.StatusStr
+            print(f"[EVENT] StatusChangeEvent: rig={RigNumber}, status='{status}'",flush=True)
+            if status=="On-line":
+               self.win.ready_led.set_on(True)
+               self.win.ready_label.setText("Online")
+               #rigName=rig.RigName
+               if RigNumber==1:
+                  self.win.ready_rig_label.setText(f"({self.win.omni.Rig1.RigType})")
+               else:
+                  self.win.ready_rig_label.setText(f"({self.win.omni.Rig2.RigType})")
+            else:
+               self.win.ready_led.set_on(False)
+               self.win.ready_label.setText("Offline")
+               self.win.ready_rig_label.setText("")
+        except Exception as e:
+            print(f"[EVENT] StatusChangeEvent: rig={RigNumber}, error leyendo estado: {e}",flush=True)
+        if mutex==True:
+           mutex=False
+    # Se llamará cuando cambien parámetros (frecuencia, modo, etc.)
+   def OnParamsChange(self, RigNumber,e):
+        global linux_flag
+        if linux_flag:
+           return
+        try:
+            rig = self.win.omni.Rig1 if RigNumber == 1 else self.win.omni.Rig2
+            freq = rig.Freq
+            mode = rig.Mode
+            if RigNumber==1:
+               self.win.rig1_freq_label.setText(f"{freq/1e6:.3f} MHz")
+               self.win.rig1_vfo_label.setText(str(rig.Vfo))
+               
+               #self.win.rig1_vfo_label.setText(f"{getMode(mode)}")
+            else:
+               self.win.rig2_freq_label.setText(f"{freq/1e6:.3f} MHz")
+               self.win.rig2_vfo_label.setText(str(rig.Vfo))
+                  
+            #print(f"[EVENT] ParamsChangeEvent: rig={RigNumber}, freq={freq}, mode={mode}", flush=True)
+        except Exception as e:
+            print(f"[EVENT] ParamsChangeEvent: rig={RigNumber}, error leyendo params: {e}", flush=True)
+               
+        
+
+
 # Locate the PyMeter.py file in the repository (assumes script lives in PyControl/)
 repo_root = Path(__file__).resolve().parents[1]
 pym_path = repo_root / 'PyMeter' / 'PyMeter.py'
@@ -78,9 +191,30 @@ SwapButton = getattr(_pym, 'SwapButton')
 
 
 def build_window(debug: bool = False) -> QWidget:
+    global linux_flag
+    # ----------------------------------------------------------------------
+    # Creates COM object to handle interaction with OmniRig
+    # ----------------------------------------------------------------------
+    if linux_flag:
+        print("Running on non-Windows environment, GUI evaluation only")
+    else:
+        
+        pythoncom.CoInitialize()
+        self.omni = win32com.client.DispatchWithEvents("OmniRig.OmniRigX", OmniRigEvents)
+        
+        #* DEBUG Make Settings window visible --- self.omni.DialogVisible=Tru
+        OmniRigEvents.win=self
+        
+        self.rig1 = self.omni.Rig1
+        self.rig2 = self.omni.Rig2
+        
+
+
+
+
     """Build a compact control window reusing widgets from PyMeter."""
     win = QWidget()
-    win.setWindowTitle('PyControl - Remote Console')
+    win.setWindowTitle('PyControl (c) LU7DZ 2025')
     layout = QVBoxLayout(win)
     # reduce vertical spacing so elements sit tightly
     layout.setSpacing(2)
@@ -933,6 +1067,34 @@ def build_window(debug: bool = False) -> QWidget:
     setattr(win, 'rig2_mode', rig2_mode)
 
     return win
+
+    def SendCAT(rig, command_str,reply_length,reply_end):
+                
+       global mutex,lastCmd,linux_flag
+       if linux_flag:
+          print("Running on a non-Windows environment, skip CAT thru OmniRig")
+          return
+
+       print(f"SendCAT Command: {command_str} Length: {reply_length} End: {reply_end}")
+       if self.ready_rig_label.text() != "(FT-2000)":
+            print(f"Custom Command CAT only available for FT-2000 ({self.ready_rig_label.text()})")
+            lastCmd=""
+            mutex=False
+            return ""
+       command_bytes = command_str.encode("ascii")
+       mutex=True
+       rig.SendCustomCommand(command_bytes,reply_length,reply_end)
+       lastCmd=""
+    
+       try:
+           while mutex==True:
+               pythoncom.PumpWaitingMessages()
+               if mutex == False:
+                  return lastCmd
+       except Exception:
+           pass
+
+
 
 
 def main(argv: list[str] | None = None) -> int:
