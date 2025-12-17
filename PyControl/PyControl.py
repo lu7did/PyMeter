@@ -447,7 +447,11 @@ def build_window(debug: bool = False) -> QWidget:
     headers = ['', 'rig', 'name', 'status', 'freq', 'mode', 'split']
     for c, h in enumerate(headers):
         lbl = QLabel(f"<b>{h}</b>") if h else QLabel('')
-        lbl.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        # center the 'freq' header above its column, keep others left-aligned
+        if h == 'freq':
+            lbl.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
+        else:
+            lbl.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         grid.addWidget(lbl, 0, c)
 
     # Row 1: rig1
@@ -482,9 +486,9 @@ def build_window(debug: bool = False) -> QWidget:
 
     # frequency displayed as single right-aligned label with one space before 'MHz'
     rig1_freq = QLabel(f"{rig1_freq_value:,d} MHz")
-    rig1_freq.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+    rig1_freq.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
     rig1_freq.setMinimumWidth(120)
-    grid.addWidget(rig1_freq, 1, 4, alignment=Qt.AlignRight | Qt.AlignVCenter)
+    grid.addWidget(rig1_freq, 1, 4, alignment=Qt.AlignHCenter | Qt.AlignVCenter)
     grid.addWidget(rig1_mode, 1, 5, alignment=Qt.AlignLeft | Qt.AlignVCenter)
     # Split checkbox for rig1
     rig1_split_cb = QCheckBox('Split')
@@ -509,7 +513,7 @@ def build_window(debug: bool = False) -> QWidget:
 
     rig2_freq_value = 7200000  # Hz as integer
     rig2_freq = QLabel(f"{rig2_freq_value:,d} MHz")
-    rig2_freq.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+    rig2_freq.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
     rig2_freq.setMinimumWidth(120)
     rig2_mode = QLabel('LSB')
 
