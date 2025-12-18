@@ -185,7 +185,8 @@ def updateMeter():
 
     try:
        if linux_flag:
-          return val
+          return 0
+    
        if win.rig1_radio.isChecked():
           rig=omni.Rig1
        else:
@@ -1466,17 +1467,22 @@ def main(argv: list[str] | None = None) -> int:
     if args.test:
         from PyQt5.QtCore import QTimer
 
-        val = 0
+        # animate number of lit segments from 1..meter._segments
+        val = 1
         direction = 1
 
         def tick() -> None:
             nonlocal val, direction
-            val += 8 * direction
-            if val >= 255:
-                val = 255
+            try:
+                max_seg = getattr(win, 'meter')._segments
+            except Exception:
+                max_seg = 15
+            val += 1 * direction
+            if val >= max_seg:
+                val = max_seg
                 direction = -1
-            elif val <= 0:
-                val = 0
+            elif val <= 1:
+                val = 1
                 direction = 1
             try:
                 win.set_meter(val)
@@ -1485,7 +1491,7 @@ def main(argv: list[str] | None = None) -> int:
 
         timer = QTimer()
         timer.timeout.connect(tick)
-        timer.start(50)
+        timer.start(250)
         win._test_timer = timer
 
     return app.exec()

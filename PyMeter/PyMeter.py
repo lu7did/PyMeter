@@ -101,21 +101,26 @@ class VUMeter(QWidget):
     placed very close together (small gap) without touching.
     """
 
-    def __init__(self, segments: int = 10, led_diameter: int = 8, parent: QWidget | None = None) -> None:
+    def __init__(self, segments: int = 15, led_diameter: int = 8, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         if segments <= 0:
             raise ValueError("segments must be > 0")
         self._segments = segments
-        self._value = 0  # 0..255
+        # number of lit segments (1..segments)
+        self._value = 0
         # target LED diameter (matches LedIndicator default)
         self._led_diameter = int(led_diameter)
         # compute a sensible minimum size so LEDs are visible
         total_w = (self._led_diameter * self._segments) + (2 * (self._segments - 1)) + 8
         total_h = self._led_diameter + 8
         self.setMinimumSize(QSize(max(240, total_w), max(30, total_h)))
-        # precompute band mapping: first 5 green, next 3 yellow, last 2 red
+        # precompute band mapping: distribution for 15 LEDs -> 9 green, 4 yellow, 2 red
         # this allows precise control over colors per LED
-        self._bands = (['green'] * 5) + (['yellow'] * 3) + (['red'] * 2)
+        if self._segments == 15:
+            self._bands = (['green'] * 9) + (['yellow'] * 4) + (['red'] * 2)
+        else:
+            # fallback to original 5/3/2 for other sizes
+            self._bands = (['green'] * 5) + (['yellow'] * 3) + (['red'] * 2)
         self.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.MinimumExpanding)
         # whether the meter is enabled (online). When disabled, all LEDs show off colors
 
@@ -126,12 +131,18 @@ class VUMeter(QWidget):
         return QSize((self._led_diameter + 2) * self._segments + 16, self._led_diameter + 20)
 
     def set_value(self, value: int) -> None:
-        """Set meter value in 0..255 and refresh display."""
+        """Set meter value as number of lit segments (1..segments) and refresh display.
+
+        The meter now expects an integer indicating how many LEDs should be lit
+        (1 = first LED, segments = all LEDs). Values outside 1..segments are ignored.
+        """
         try:
             v = int(value)
         except Exception:
             return
-        v = max(0, min(255, v))
+        # enforce requested constraint: only accept values > 0 and <= segments
+        if v <= 0 or v > self._segments:
+            return
         if v != self._value:
             self._value = v
             self.update()
@@ -149,7 +160,8 @@ class VUMeter(QWidget):
         start_x = 4
         # vertically center LEDs
         y = int((h - d) / 2)
-        lit_count = int(round((self._value / 255.0) * self._segments))
+        # _value now represents number of lit segments directly
+        lit_count = int(max(0, min(self._segments, int(self._value))))
 
         for i in range(self._segments):
             x = start_x + i * (d + gap)
