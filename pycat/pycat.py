@@ -95,6 +95,20 @@ def setVfo(rig,mVfo):
   if mVfo == "B":
      rig.Vfo =0x00001000
      return
+
+  if mVfo == "AA":
+     rig.Vfo =0x00000080
+     return
+  if mVfo == "AB":
+     rig.Vfo =0x00000100
+     return
+  if mVfo == "BA":
+     rig.Vfo =0x00000200
+     return
+  if mVfo == "BB":
+     rig.Vfo =0x00000400
+     return
+
   print(f"ERROR. Invalid VFO code given. Ignored")
   
 #*------------------------------------------------------------------------------------

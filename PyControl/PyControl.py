@@ -49,6 +49,15 @@ PM_AM      = 0x20000000
 PM_FM      = 0x40000000
 PM_VFOA    = 0x00000800
 PM_VFOB    = 0x00001000
+PM_VFOAA   = 0x00000080;
+PM_VFOAB   = 0x00000100;
+PM_VFOBA   = 0x00000200;
+PM_VFOBB   = 0x00000400;
+PM_VFOEQUAL= 0x00002000;
+PM_VFOSWAP = 0x00004000;
+PM_RX      = 0x00200000;
+PM_TX      = 0x00400000;
+
 
 try:
    import pythoncom
@@ -71,10 +80,13 @@ try:
    tune=None
    mute=None
    meter=None
+   tr=None
    rb_swr=None
    rb_power=None
    rb_signal=None
    rb_none=None
+   rb_vfoa=None
+   rb_vfob=None
 except:
    print("Not a Win32 environment, dependencies not satisfied, only GUI evaluation mode")
 
@@ -139,7 +151,7 @@ else:
 
        command_bytes = command_str.encode("ascii")
        cmd_sent=command_bytes;
-       print(f"(SendCAT) Sending command ({command_bytes})")
+       #print(f"(SendCAT) Sending command ({command_bytes})")
        rig.SendCustomCommand(command_bytes, reply_length, reply_end)
 
        try:
@@ -148,11 +160,7 @@ else:
               if reply_length == 0:
                  print(f"CMD[{cmd_sent}] --> ANSWER[{command_bytes}]")
  
-                 if command_bytes[:2].upper().decode('utf-8') == "AC":
-                    print(f"AC response detected {command_bytes[:2].upper().decode('utf-8')}")
-                 return
-
-              print(f"{command_bytes}")
+              #print(f"{command_bytes}")
               if cmd_sent != command_bytes:            
                  print(f"CMD[{cmd_sent}] --> ANSWER[{command_bytes}]")
               return
@@ -163,9 +171,6 @@ else:
 #*------------------------------------------------------------------------------------
 #* Set Vfo A or B
 #*------------------------------------------------------------------------------------
-
-
-
 def setVfo(rig,mVfo):
 
     global omni, win,mutex,power_enable_cb,volume_enable_cb,left_enable_cb,mid_enable_cb,right_enable_cb,tr_cb,mute_cb,split_cb,tune_cb,splitState
@@ -174,12 +179,23 @@ def setVfo(rig,mVfo):
        if linux_flag:
           return 
 
-       if mVfo == "VFO A":
-          rig.Vfo = PM_VFOA
-          return
-       if mVfo == "VFO B":
-          rig.Vfo = PM_VFOB
-          return
+       if rig.RigType == "FT-2000":
+
+          if mVfo == "VFO A":       # FT-2000 produces strange effects
+             #rig.Vfo = PM_VFOAA    # when the VFO is changed with OmniRig
+             return                 # Disabled until further investigation
+          if mVfo == "VFO B":       # can take place.
+             #rig.Vfo = PM_VFOBB    # It's quite insecure to use it as remote
+             return                 # as the rig is left into an unstable configuration
+       else:
+    
+          if mVfo == "VFO A":
+             rig.Vfo = PM_VFOA
+             return
+          if mVfo == "VFO B":
+             rig.Vfo = PM_VFOB
+             return
+
     except Exception as e:
        print(f"setVfo() exception {e}")
        pass
@@ -199,13 +215,13 @@ def setVUMeter(txt):
           rig=omni.Rig2
 
        if rig.RigType != "FT-2000":
-          print(f"Command to updateMeter() not available with {rig.RigType}")
-          return val
+          print(f"Command to setVUMeter() not available with {rig.RigType}")
+          return 0
 
        meter.set_value(0)
 
     except Exception as e:
-       print(f"updateMeter() exception {e}")
+       print(f"setVUMeter() exception {e}")
        pass
     return txt
 
@@ -222,8 +238,7 @@ def updateMeter():
           rig=omni.Rig2
 
        if rig.RigType != "FT-2000":
-          print(f"Command to updateMeter() not available with {rig.RigType}")
-          return val
+          return 0
 
        cmd = ""
 
@@ -242,7 +257,7 @@ def updateMeter():
     except Exception as e:
        print(f"updateMeter() exception {e}")
        pass
-    return txt
+    return 0
 
 def setAntenna(txt):
 
@@ -319,47 +334,70 @@ def setButton(strButton,val):
 #*------------------------------------------------------------------------------------
 #* set state of push
 #*------------------------------------------------------------------------------------
+def pushMode(rig,m):
+    global omni, win,mutex,power_enable_cb,volume_enable_cb,left_enable_cb,mid_enable_cb,right_enable_cb,tr_cb,mute_cb,split_cb,tune_cb,splitState,tune,mute,tr
+    try:
+       if linux_flag:
+          return m
+       setMode(rig,m)
+       if rig1_radio.isChecked():
+          rig1_mode.setText(m)
+       else:
+          rig2_mode.setText(m)
+       return m
 
-def setPush(n):
-    global omni, win,mutex,power_enable_cb,volume_enable_cb,left_enable_cb,mid_enable_cb,right_enable_cb,tr_cb,mute_cb,split_cb,tune_cb,splitState,tune,mute
+    except Exception as e:
+       print(f"setPush() exception {e}")
+       pass
+    return m
+
+
+def setPush(rig,n):
+    global omni, win,mutex,power_enable_cb,volume_enable_cb,left_enable_cb,mid_enable_cb,right_enable_cb,tr_cb,mute_cb,split_cb,tune_cb,splitState,tune,mute,tr
     try:
        if linux_flag:
           return n
+
        if n=="Split":
-          print(f"Split button pressed checked({splitState})")
+          return n
+          #print(f"Split button pressed checked({splitState})")
 
        if n=="Tune":
-          print(f"Tune button pressed checked({splitState})")
-          if win.rig1_radio.isChecked():
-             rig=omni.Rig1
-          else:
-             rig=omni.Rig2
+          #print(f"Tune button pressed checked({splitState})")
           if rig.RigType == "FT-2000":
              cmd="AC002;"
              tune._led.set_on(True)
              SendCAT(rig,cmd,0,";")
 
+       if n=="RX" or n=="TX":
+
+       # Get a list of methods using dir()
+          if rig.RigType == "FT-2000":
+             #print(f"RIG 1 AND FT-2000 msg{n} status {tr._led.is_on()}) state({tr.get_state()})")
+             if tr.get_state() == 0:
+                tr.set_state(1)
+                tr._button.setText('TX')
+                tr._led.set_on(True)
+                rig.Tx=PM_TX
+             else:
+                tr.set_state(0)
+                tr._button.setText('RX')
+                tr._led.set_on(False)
+                rig.Tx=PM_RX
+
        if n=="Mute":
-          print(f"Tune button pressed checked({splitState})")
-          if win.rig1_radio.isChecked():
-             rig=omni.Rig1
-          else:
-             rig=omni.Rig2
+          #print(f"Tune button pressed checked({splitState})")
           if rig.RigType == "FT-2000":
              if mute._led.is_on():
                 cmd="AG0030;"
              else:
                 cmd="AG0000;"
-             print(f"Mute [AFTER] LED State({mute._led.is_on()})")
+             #print(f"Mute [AFTER] LED State({mute._led.is_on()})")
              SendCAT(rig,cmd,0,";")
              if mute._led.is_on():
                 mute._led.set_on(False)
              else:
                 mute._led.set_on(True)
-
-
-          
-           
        return n
     except Exception as e:
        print(f"setPush() exception {e}")
@@ -370,7 +408,9 @@ def updateSplit():
     global omni, win,mutex,power_enable_cb,volume_enable_cb,left_enable_cb,mid_enable_cb,right_enable_cb,tr_cb,mute_cb,split_cb,tune_cb,rig1_split_cb,rig2_split_cb
     if linux_flag:
        return
+"""
     try:
+
        if rig1_split_cb.isChecked():
           omni.Rig1.Split=PM_SPLITON
        else:
@@ -383,9 +423,9 @@ def updateSplit():
     except Exception as e:
        print(f"updateSplit() exception {e}")
        pass
-
+"""
 def updateStatus():
-    global omni, win,mutex,power_enable_cb,volume_enable_cb,left_enable_cb,mid_enable_cb,right_enable_cb,tr_cb,mute_cb,split_cb,tune_cb,rig1_split_cb,rig2_split_cb
+    global omni, win,mutex,power_enable_cb,volume_enable_cb,left_enable_cb,mid_enable_cb,right_enable_cb,tr_cb,mute_cb,split_cb,tune_cb,rig1_split_cb,rig2_split_cb,rb_vfoa,rb_vfob
     if linux_flag:
        return
     try:
@@ -393,7 +433,19 @@ def updateStatus():
        rig2=omni.Rig2
 
        win.rig1_name.setText(rig1.RigType)
-       win.rig1_freq_label.setText(str(rig1.Freq))
+
+       if rig1.RigType != "FT-2000":
+          win.rig1_freq_label.setText(str(rig1.Freq))
+       else:
+          if win.rig1_radio.isChecked():
+             if rb_vfoa.isChecked():
+                win.rig1_freq_label.setText(str(rig1.FreqA))
+             else:
+                win.rig1_freq_label.setText(str(rig1.FreqB))
+          else:
+             win.rig1_freq_label.setText(str(rig1.Freq))
+
+
        win.rig1_mode.setText(getMode(rig1.Mode))
 
        if rig1.StatusStr == "On-line":
@@ -402,7 +454,20 @@ def updateStatus():
           win.rig1_led.set_on(False)
 
        win.rig2_name.setText(rig2.RigType)
-       win.rig2_freq_label.setText(str(rig2.Freq))
+       
+       if rig2.RigType != "FT-2000":
+          win.rig2_freq_label.setText(str(rig2.Freq))
+       else:
+          if win.rig2_radio.isChecked():
+             if rb_vfoa.isChecked():
+                win.rig2_freq_label.setText(str(rig2.FreqA))
+             else:
+                win.rig2_freq_label.setText(str(rig2.FreqB))
+          else:
+             win.rig2_freq_label.setText(str(rig2.Freq))
+
+
+
        win.rig2_mode.setText(getMode(rig2.Mode))
 
        if rig2.StatusStr == "On-line":
@@ -413,7 +478,7 @@ def updateStatus():
        if (rig1.RigType == "FT-2000" and win.rig1_radio.isChecked()) or (rig2.RigType == "FT-2000" and win.rig2_radio.isChecked()):
              power_enable_cb.setChecked(True)
              volume_enable_cb.setChecked(True)
-             right_enable_cb.setChecked(True)
+             right_enable_cb.setChecked(False)    # *Temporary* while a fix is found for the VFOA/B issue 
              mid_enable_cb.setChecked(True)
              left_enable_cb.setChecked(True)
 
@@ -539,7 +604,7 @@ class OmniRigEvents:
         try:
             rig = omni.Rig1 if RigNumber == 1 else omni.Rig2
 
-            print(f"[EVENT] ParamsChangeEvent: rig={RigNumber} param:{e:08x} Freq({rig.Freq}) Mode({getMode(rig.Mode)})", flush=True)
+            #print(f"[EVENT] ParamsChangeEvent: rig={RigNumber} param:{e:08x} Freq({rig.Freq}) Mode({getMode(rig.Mode)})", flush=True)
             updateStatus()
             win.tune._led.set_on(False)
 
@@ -573,7 +638,7 @@ SwapButton = getattr(_pym, 'SwapButton')
 
 def build_window(debug: bool = False) -> QWidget:
 
-    global linux_flag,omni,win,power_enable_cb,volume_enable_cb,right_enable_cb,mid_enable_cb,left_enable_cb,tr_cb,mute_cb,split_cb,tune_cb,splitState,rig1_split_cb,rig2_split_cb,tune,mute,meter,rb_swr,rb_power,rb_signal,rb_none
+    global linux_flag,omni,win,power_enable_cb,volume_enable_cb,right_enable_cb,mid_enable_cb,left_enable_cb,tr_cb,mute_cb,split_cb,tune_cb,splitState,rig1_split_cb,rig2_split_cb,tune,mute,meter,rb_swr,rb_power,rb_signal,rb_none,rb_vfoa,rb_vfob,tr
 
 
     # ----------------------------------------------------------------------
@@ -672,7 +737,11 @@ def build_window(debug: bool = False) -> QWidget:
     mode_selector.setCurrentIndex(0)
     def _on_mode_changed(t: str) -> None:
         try:
-            print(f"Mode selector changed: {t}")
+            if rig1_radio.isChecked():
+               rig=omni.Rig1
+            else:
+               rig=omni.Rig2
+            print(f"Mode selector changed: {pushMode(rig,t)}")
             _save_key('MODE', t)
         except Exception:
             pass
@@ -1249,6 +1318,8 @@ def build_window(debug: bool = False) -> QWidget:
     # Set logical state to RX (0) for buttons if supported
     try:
         tr.set_state(0)
+        omni.Rig1.Tx=PM_RX
+        omni.Rig2.Tx=PM_RX
     except Exception:
         pass
     try:
@@ -1379,7 +1450,11 @@ def build_window(debug: bool = False) -> QWidget:
             except Exception:
                 pass
             #qbtn.clicked.connect(lambda checked=False, n=name: print(f"Button event: {n}"))
-            qbtn.clicked.connect(lambda checked=False, n=name: print(f"Button event: {setPush(n)}"))
+            if rig1_radio.isChecked():
+               r=omni.Rig1
+            else:
+               r=omni.Rig2
+            qbtn.clicked.connect(lambda checked=False, n=name: print(f"Button event: {setPush(r,n)}"))
         except Exception:
             # fallback: print on exception
             try:
