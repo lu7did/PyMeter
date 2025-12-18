@@ -71,6 +71,10 @@ try:
    tune=None
    mute=None
    meter=None
+   rb_swr=None
+   rb_power=None
+   rb_signal=None
+   rb_none=None
 except:
    print("Not a Win32 environment, dependencies not satisfied, only GUI evaluation mode")
 
@@ -181,7 +185,7 @@ def setVfo(rig,mVfo):
     return 
 
 def updateMeter():
-    global omni, win,mutex,power_enable_cb,volume_enable_cb,left_enable_cb,mid_enable_cb,right_enable_cb,tr_cb,mute_cb,split_cb,tune_cb,splitState,tune,mute
+    global omni, win,mutex,power_enable_cb,volume_enable_cb,left_enable_cb,mid_enable_cb,right_enable_cb,tr_cb,mute_cb,split_cb,tune_cb,splitState,tune,mute,rb_swr,rb_power,rb_signal,rb_none
 
     try:
        if linux_flag:
@@ -196,10 +200,18 @@ def updateMeter():
           print(f"Command to updateMeter() not available with {rig.RigType}")
           return val
 
-       cmd = "RM1;"
-       print(f"updateMeter() request sent to {rig.RigType}")
+       cmd = ""
+
+       if rb_swr.isChecked():
+          cmd= "RM6;"
+       if rb_power.isChecked():
+          cmd= "RM5;"
+       if rb_signal.isChecked():
+          cmd= "RM1;"
+
 
        if cmd  !=  "":
+          print(f"updateMeter() request {cmd} sent to {rig.RigType}")
           SendCAT(rig,cmd,0,";")
 
     except Exception as e:
@@ -425,7 +437,7 @@ class OmniRigEvents:
 
    def OnCustomReply(self,RigNumber=defaultNamedNotOptArg,Command=defaultNamedNotOptArg,Reply=defaultNamedNotOptArg):
 
-       global omni,linux_flag,tune,meter
+       global omni,linux_flag,tune,meter,rb_swr,rb_power,rb_signal,rb_none
        if linux_flag:
           return
 
@@ -439,6 +451,7 @@ class OmniRigEvents:
              if len(reply)>6:
                 indicator=int(reply[2])
                 level=int(f"{int(reply[3:6]):0{3}d}")
+                print(f"Updating meter with {indicator} value({level})")
                 meter.set_value(int(level))
        except Exception as e:
           print(f"[CustomReply] exception {e}")
@@ -535,7 +548,7 @@ SwapButton = getattr(_pym, 'SwapButton')
 
 def build_window(debug: bool = False) -> QWidget:
 
-    global linux_flag,omni,win,power_enable_cb,volume_enable_cb,right_enable_cb,mid_enable_cb,left_enable_cb,tr_cb,mute_cb,split_cb,tune_cb,splitState,rig1_split_cb,rig2_split_cb,tune,mute,meter
+    global linux_flag,omni,win,power_enable_cb,volume_enable_cb,right_enable_cb,mid_enable_cb,left_enable_cb,tr_cb,mute_cb,split_cb,tune_cb,splitState,rig1_split_cb,rig2_split_cb,tune,mute,meter,rb_swr,rb_power,rb_signal,rb_none
 
 
     # ----------------------------------------------------------------------
