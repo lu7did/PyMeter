@@ -68,7 +68,9 @@ try:
    splitState=0
    rig1_split_cb=None
    rig2_split_cb=None
-
+   tune=None
+   mute=None
+   meter=None
 except:
    print("Not a Win32 environment, dependencies not satisfied, only GUI evaluation mode")
 
@@ -119,8 +121,49 @@ else:
 #*------------------------------------------------------------------------------------
 #* Set Vfo A or B
 #*------------------------------------------------------------------------------------
+    def SendCAT(rig, command_str,reply_length,reply_end):
+                
+       global linux_flag,omni,win
+       if linux_flag:
+          print("Running on a non-Windows environment, skip CAT thru OmniRig")
+          return
+       if rig.RigType != "FT-2000":
+          print(f"Custom commands not supported for rigs other than FT-2000")
+          return
+
+    # Convert command to bytes
+
+       command_bytes = command_str.encode("ascii")
+       cmd_sent=command_bytes;
+       print(f"(SendCAT) Sending command ({command_bytes})")
+       rig.SendCustomCommand(command_bytes, reply_length, reply_end)
+
+       try:
+          while True:
+              pythoncom.PumpWaitingMessages()
+              if reply_length == 0:
+                 print(f"CMD[{cmd_sent}] --> ANSWER[{command_bytes}]")
+ 
+                 if command_bytes[:2].upper().decode('utf-8') == "AC":
+                    print(f"AC response detected {command_bytes[:2].upper().decode('utf-8')}")
+                 return
+
+              print(f"{command_bytes}")
+              if cmd_sent != command_bytes:            
+                 print(f"CMD[{cmd_sent}] --> ANSWER[{command_bytes}]")
+              return
+       except KeyboardInterrupt:
+          print("\nKeyboard interrupt received, aborting...")
+
+
+#*------------------------------------------------------------------------------------
+#* Set Vfo A or B
+#*------------------------------------------------------------------------------------
+
 def setVfo(rig,mVfo):
+
     global omni, win,mutex,power_enable_cb,volume_enable_cb,left_enable_cb,mid_enable_cb,right_enable_cb,tr_cb,mute_cb,split_cb,tune_cb,splitState
+
     try:
        if linux_flag:
           return 
@@ -137,14 +180,148 @@ def setVfo(rig,mVfo):
     print(f"ERROR. Invalid VFO code given. Ignored")
     return 
 
+def updateMeter():
+    global omni, win,mutex,power_enable_cb,volume_enable_cb,left_enable_cb,mid_enable_cb,right_enable_cb,tr_cb,mute_cb,split_cb,tune_cb,splitState,tune,mute
+
+    try:
+       if linux_flag:
+          return val
+       if win.rig1_radio.isChecked():
+          rig=omni.Rig1
+       else:
+          rig=omni.Rig2
+
+       if rig.RigType != "FT-2000":
+          print(f"Command to updateMeter() not available with {rig.RigType}")
+          return val
+
+       cmd = "RM1;"
+       print(f"updateMeter() request sent to {rig.RigType}")
+
+       if cmd  !=  "":
+          SendCAT(rig,cmd,0,";")
+
+    except Exception as e:
+       print(f"updateMeter() exception {e}")
+       pass
+    return txt
+
+def setAntenna(txt):
+
+    global omni, win,mutex,power_enable_cb,volume_enable_cb,left_enable_cb,mid_enable_cb,right_enable_cb,tr_cb,mute_cb,split_cb,tune_cb,splitState,tune,mute
+
+    try:
+       if linux_flag:
+          return val
+       if win.rig1_radio.isChecked():
+          rig=omni.Rig1
+       else:
+          rig=omni.Rig2
+
+       if rig.RigType != "FT-2000":
+          print(f"Command to set {txt} not available with {rig.RigType}")
+          return val
+
+       print(f"Selected {txt})")
+
+       cmd = ""
+       if txt.upper() == "ANT 1":
+          cmd=f"AN01;"
+
+       if txt.upper() == "ANT 2":
+          cmd=f"AN02;"
+
+       if cmd  !=  "":
+          SendCAT(rig,cmd,0,";")
+
+    except Exception as e:
+       print(f"setAntenna() exception {e}")
+       pass
+    return txt
+
+#*------------------------------------------------------------------------------------
+#* set state of push
+#*------------------------------------------------------------------------------------
+def setButton(strButton,val):
+    global omni, win,mutex,power_enable_cb,volume_enable_cb,left_enable_cb,mid_enable_cb,right_enable_cb,tr_cb,mute_cb,split_cb,tune_cb,splitState,tune,mute
+    try:
+       if linux_flag:
+          return val
+       if win.rig1_radio.isChecked():
+          rig=omni.Rig1
+       else:
+          rig=omni.Rig2
+
+       if rig.RigType != "FT-2000":
+          print(f"Command to set {strButton} not available with {rig.RigType}")
+          return val
+
+       if val < 0:
+          val = 0
+       if val > 255:
+          val = 255
+
+       print(f"Set {strButton} to level({val})")
+
+       cmd = ""
+       if strButton.upper() == "VOL":
+          cmd=f"AG0{val:0{3}d};"
+
+       if strButton.upper() == "PWR":
+          cmd=f"PC{val:0{3}d};"
+
+       if cmd  !=  "":
+          SendCAT(rig,cmd,0,";")
+
+    except Exception as e:
+       print(f"setButton() exception {e}")
+       pass
+    return val
+
+#*------------------------------------------------------------------------------------
+#* set state of push
+#*------------------------------------------------------------------------------------
+
 def setPush(n):
-    global omni, win,mutex,power_enable_cb,volume_enable_cb,left_enable_cb,mid_enable_cb,right_enable_cb,tr_cb,mute_cb,split_cb,tune_cb,splitState
+    global omni, win,mutex,power_enable_cb,volume_enable_cb,left_enable_cb,mid_enable_cb,right_enable_cb,tr_cb,mute_cb,split_cb,tune_cb,splitState,tune,mute
     try:
        if linux_flag:
           return n
        if n=="Split":
           print(f"Split button pressed checked({splitState})")
-                
+
+       if n=="Tune":
+          print(f"Tune button pressed checked({splitState})")
+          if win.rig1_radio.isChecked():
+             rig=omni.Rig1
+          else:
+             rig=omni.Rig2
+          if rig.RigType == "FT-2000":
+             cmd="AC002;"
+             tune._led.set_on(True)
+             SendCAT(rig,cmd,0,";")
+
+       if n=="Mute":
+          print(f"Tune button pressed checked({splitState})")
+          if win.rig1_radio.isChecked():
+             rig=omni.Rig1
+          else:
+             rig=omni.Rig2
+          if rig.RigType == "FT-2000":
+             if mute._led.is_on():
+                cmd="AG0030;"
+             else:
+                cmd="AG0000;"
+             print(f"Mute [AFTER] LED State({mute._led.is_on()})")
+             SendCAT(rig,cmd,0,";")
+             if mute._led.is_on():
+                mute._led.set_on(False)
+             else:
+                mute._led.set_on(True)
+
+
+          
+           
        return n
     except Exception as e:
        print(f"setPush() exception {e}")
@@ -246,23 +423,34 @@ class OmniRigEvents:
    #*--- Response to a custom command
 
    def OnCustomReply(self,RigNumber=defaultNamedNotOptArg,Command=defaultNamedNotOptArg,Reply=defaultNamedNotOptArg):
-       global mutex,lastCmd,linux_flag
-       if linux_flag == True: 
+
+       global omni,linux_flag,tune,meter
+       if linux_flag:
           return
+
+       """Triggers when a response to a custom command is received."""
        try:
           reply_bytes = bytes(Reply)
-          lastCmd=reply_bytes
+          print(f"[CustomReply] Rig={RigNumber} Cmd={bytes(Command)} Reply={reply_bytes!r}")
+
+          reply=reply_bytes.decode('utf-8').upper()
+          if reply[:2] == "RM":
+             if len(reply)>6:
+                indicator=int(reply[2])
+                level=int(f"{int(reply[3:6]):0{3}d}")
+                meter.set_value(int(level))
+       except Exception as e:
+          print(f"[CustomReply] exception {e}")
+          reply_bytes=""
+
        except TypeError:
-          reply_bytes = Reply
-          lastCmd=""
-       mutex=False
-       updateStatus()
-       print(f"Procesó [CustomReply] Rig={RigNumber} Cmd={Command!r} Reply={reply_bytes!r} MUTEX({mutex})")
+          reply_bytes = ""
+
 
    #*--- Response to a change in the visible condition of the Omnirig's settings dialog
 
    def OnVisibleChange(self, RigNumber):
-        global linux_flag
+        global linux_flag,win
         if linux_flag:
            return
         updateStatus()
@@ -271,16 +459,18 @@ class OmniRigEvents:
    #*--- Change the rig type
 
    def OnRigTypeChange(self, RigNumber):
-        global linux_flag
+        global linux_flag,win
         if linux_flag:
            return
         updateStatus()
+        win.tune._led.set_on(False)
+
         print(f"[EVENT] RigTypeChangeEvent: rig={RigNumber}", flush=True)
 
    #*--- Change the rig status
 
    def OnStatusChange(self, RigNumber):
-        global mutex,linux_flag
+        global mutex,linux_flag,win
         if linux_flag:
            return
         try:
@@ -293,6 +483,8 @@ class OmniRigEvents:
             else:
                print(f"{RigNumber} Offline")
             updateStatus()
+            win.tune._led.set_on(False)
+
         except Exception as e:
             print(f"[EVENT] StatusChangeEvent: rig={RigNumber}, error leyendo estado: {e}",flush=True)
         if mutex==True:
@@ -302,7 +494,7 @@ class OmniRigEvents:
 
    def OnParamsChange(self, RigNumber,e):
 
-        global linux_flag,omni,mutex
+        global linux_flag,omni,mutex,win
         if linux_flag:
            return
         try:
@@ -310,6 +502,7 @@ class OmniRigEvents:
 
             print(f"[EVENT] ParamsChangeEvent: rig={RigNumber} param:{e:08x} Freq({rig.Freq}) Mode({getMode(rig.Mode)})", flush=True)
             updateStatus()
+            win.tune._led.set_on(False)
 
         except Exception as e:
             print(f"[EVENT] ParamsChangeEvent: rig={RigNumber}, error leyendo params: {e}", flush=True)
@@ -341,7 +534,7 @@ SwapButton = getattr(_pym, 'SwapButton')
 
 def build_window(debug: bool = False) -> QWidget:
 
-    global linux_flag,omni,win,power_enable_cb,volume_enable_cb,right_enable_cb,mid_enable_cb,left_enable_cb,tr_cb,mute_cb,split_cb,tune_cb,splitState,rig1_split_cb,rig2_split_cb
+    global linux_flag,omni,win,power_enable_cb,volume_enable_cb,right_enable_cb,mid_enable_cb,left_enable_cb,tr_cb,mute_cb,split_cb,tune_cb,splitState,rig1_split_cb,rig2_split_cb,tune,mute,meter
 
 
     # ----------------------------------------------------------------------
@@ -469,6 +662,7 @@ def build_window(debug: bool = False) -> QWidget:
                 win._signal_led_state = not getattr(win, '_signal_led_state', False)
                 updateStatus()
                 updateSplit()
+                updateMeter()
             except Exception:
                 pass
         timer = QTimer()
@@ -653,7 +847,7 @@ def build_window(debug: bool = False) -> QWidget:
             if not getattr(win, '_power_enabled', True):
                 return
             val = int(power_slider.value())
-            print(f"Set button pressed: power={val}")
+            print(f"Set button pressed: power={setButton('PWR',val)}")
             _save_key('POWER', str(val))
         except Exception:
             pass
@@ -733,7 +927,7 @@ def build_window(debug: bool = False) -> QWidget:
             if not getattr(win, '_volume_enabled', True):
                 return
             val = int(volume_slider.value())
-            print(f"Set button pressed: volume={val}")
+            print(f"Set button pressed: volume={setButton('VOL',val)}")
             _save_key('VOLUME', str(val))
         except Exception:
             pass
@@ -826,7 +1020,7 @@ def build_window(debug: bool = False) -> QWidget:
     def _on_mid_changed(button) -> None:
         try:
             txt = button.text()
-            print(f"Antenna selected: {txt}")
+            print(f"Antenna selected: {setAntenna(txt)}")
             _save_key('ANT', txt)
         except Exception:
             pass
@@ -1247,34 +1441,6 @@ def build_window(debug: bool = False) -> QWidget:
     setattr(win, 'rig2_mode', rig2_mode)
 
     return win
-
-    def SendCAT(rig, command_str,reply_length,reply_end):
-                
-       global mutex,lastCmd,linux_flag
-       if linux_flag:
-          print("Running on a non-Windows environment, skip CAT thru OmniRig")
-          return
-
-       print(f"SendCAT Command: {command_str} Length: {reply_length} End: {reply_end}")
-       if self.ready_rig_label.text() != "(FT-2000)":
-            print(f"Custom Command CAT only available for FT-2000 ({self.ready_rig_label.text()})")
-            lastCmd=""
-            mutex=False
-            return ""
-       command_bytes = command_str.encode("ascii")
-       mutex=True
-       rig.SendCustomCommand(command_bytes,reply_length,reply_end)
-       lastCmd=""
-    
-       try:
-           while mutex==True:
-               pythoncom.PumpWaitingMessages()
-               if mutex == False:
-                  return lastCmd
-       except Exception:
-           pass
-
-
 
 
 def main(argv: list[str] | None = None) -> int:

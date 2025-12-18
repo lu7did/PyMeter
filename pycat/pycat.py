@@ -20,7 +20,7 @@ import sys
 
 defaultNamedNotOptArg = pythoncom.Empty
 flagEnd = False
-
+omni=None
 #*--------------------------------------------------------------------------------------
 #* OmniRig event handlers
 #*--------------------------------------------------------------------------------------
@@ -31,17 +31,19 @@ class OmniRigEvents:
                       RigNumber=defaultNamedNotOptArg,
                       Command=defaultNamedNotOptArg,
                       Reply=defaultNamedNotOptArg):
+        global omni
         """Triggers when a response to a custom command is received."""
         try:
             reply_bytes = bytes(Reply)
         except TypeError:
             reply_bytes = Reply
-        print(f"[CustomReply] Rig={RigNumber} Cmd={Command!r} Reply={reply_bytes!r}")
+        print(f"[CustomReply] Rig={RigNumber} Cmd={bytes(Command)} Reply={reply_bytes!r}")
         flagEnd = True
 
     def OnParamsChange(self, RigNumber,e):
+        global omni
         try:
-            rig = self.win.omni.Rig1 if RigNumber == 1 else self.win.omni.Rig2
+            rig = omni.Rig1 if RigNumber == 1 else omni.Rig2
             freq = rig.Freq
             mode = rig.Mode
             if RigNumber==1:
@@ -65,7 +67,6 @@ def getRigStatus(rig):
     # ----------------------------------------------------------------------
     print(f"Transceiver({rig.RigType})")
     print(f"  Freq({rig.Freq}) Vfo ({rig.Vfo:#08x}) Mode({getMode(rig.Mode)})")
-  # print(f"Recibio m({m:#0{padding}x}) mode({mode:#0{padding}x})  ") 
     print(f"  VFOA({rig.FreqA}) VFOB({rig.FreqB})")
     print(f"  Status({rig.Status}) Status({rig.StatusStr})")
 
