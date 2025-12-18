@@ -164,6 +164,8 @@ else:
 #* Set Vfo A or B
 #*------------------------------------------------------------------------------------
 
+
+
 def setVfo(rig,mVfo):
 
     global omni, win,mutex,power_enable_cb,volume_enable_cb,left_enable_cb,mid_enable_cb,right_enable_cb,tr_cb,mute_cb,split_cb,tune_cb,splitState
@@ -183,6 +185,29 @@ def setVfo(rig,mVfo):
        pass
     print(f"ERROR. Invalid VFO code given. Ignored")
     return 
+
+def setVUMeter(txt):
+    global omni, win,mutex,power_enable_cb,volume_enable_cb,left_enable_cb,mid_enable_cb,right_enable_cb,tr_cb,mute_cb,split_cb,tune_cb,splitState,tune,mute,rb_swr,rb_power,rb_signal,rb_none
+
+    try:
+       if linux_flag:
+          return 0
+    
+       if win.rig1_radio.isChecked():
+          rig=omni.Rig1
+       else:
+          rig=omni.Rig2
+
+       if rig.RigType != "FT-2000":
+          print(f"Command to updateMeter() not available with {rig.RigType}")
+          return val
+
+       meter.set_value(0)
+
+    except Exception as e:
+       print(f"updateMeter() exception {e}")
+       pass
+    return txt
 
 def updateMeter():
     global omni, win,mutex,power_enable_cb,volume_enable_cb,left_enable_cb,mid_enable_cb,right_enable_cb,tr_cb,mute_cb,split_cb,tune_cb,splitState,tune,mute,rb_swr,rb_power,rb_signal,rb_none
@@ -1014,7 +1039,7 @@ def build_window(debug: bool = False) -> QWidget:
     def _on_left_changed(button) -> None:
         try:
             txt = button.text()
-            print(f"Left group selected: {txt}")
+            print(f"Left group selected: {setVUMeter(txt)}")
             _save_key('LEFT', txt)
         except Exception:
             pass
