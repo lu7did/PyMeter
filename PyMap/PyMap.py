@@ -1,4 +1,5 @@
 
+
 #!/usr/bin/env python3
 #*--------------------------------------------------------------------------------------
 #* PyMap
@@ -54,7 +55,10 @@ from pyhamtools import LookupLib, Callinfo
 # Pool of connected telnet clients connected
 connected_clients: Set[asyncio.StreamWriter] = set()
 clients_lock = asyncio.Lock()
-
+my_lookuplib = LookupLib(lookuptype="countryfile")
+cic = Callinfo(my_lookuplib)
+map=None
+#plt.ion()
 #*-----------------------------------------------------------------------------
 async def handle_local_client(reader: asyncio.StreamReader,
                               writer: asyncio.StreamWriter) -> None:
@@ -89,6 +93,37 @@ async def handle_local_client(reader: asyncio.StreamReader,
             pass
         print(f"[LOCAL] Client disconnected {peername}", file=sys.stderr)
 
+
+def freq2band(freq):
+
+    f=int(float(freq))
+    try:
+      if int(f/1000) == 432:
+         return "70cm"
+      if int(f/1000) == 144:
+         return "2m"
+      if int(f/1000) == 50:
+         return "6m"
+      if int(f/1000) == 28:
+         return "10m"
+      if int(f/1000) == 24:
+         return "12m"
+      if int(f/1000) == 21:
+         return "15m"
+      if int(f/1000) == 18:
+         return "17m"
+      if int(f/1000) == 14:
+         return "20m"
+      if int(f/1000) == 10:
+         return "30m"
+      if int(f/1000) == 7:
+         return "40m"
+      if int(f/1000) == 3:
+         return "80m"
+      if int(f/1000) == 1:
+         return "160m"
+    except:
+         return 0  
 
 async def broadcast_to_clients(message: str) -> None:
     """
@@ -147,18 +182,55 @@ def parse_dx_line(line: str):
     return from_, freq, callsign, mode,speed,snr,activity,timestamp
 
 
+
+
+
+#*------------------------------------------------------------------------------------------------------
+#* Transform band into a line of a pre-defined colour
+#*------------------------------------------------------------------------------------------------------
+def band2color(band):
+    
+    match band:
+        case "40m":
+            return 'c' 
+        case "20m":   
+            return 'y'  
+        case "15m":
+            return 'g'
+        case "10m":
+            return 'm'
+        case _:
+            return 'c'
+
+
+#*------------------------------------------------------------------------------------------------------
+#* Build a map (Mercator projection)
+#*------------------------------------------------------------------------------------------------------
+def buildMap():
+    m = Basemap(projection='merc',llcrnrlon=-170,llcrnrlat=-75,urcrnrlon=170,urcrnrlat=75,resolution='l')
+    m.drawmeridians(np.arange(0,360,30))
+    m.drawparallels(np.arange(-90,90,30))
+    m.drawcoastlines(linewidth=0.25)
+    m.drawcountries(linewidth=0.25)
+    return m
+
+
 async def remote_client_task(host: str,
                              port: int,
                              keyword: str,
                              response: str,
                              filter_callsign: str,
-                             init_string: str) -> None:
+                             init_string: str,
+                             band: str) -> None:
     """
     Connection to the cluster telnet server.
     - Upon connection send an initial string
     - Wait till keyword and send challenge response.
     - Then the spot streams are processed
     """
+    global my_lookuplib,cic,map
+
+
     print(f"[REMOTE] Connecting to {host}:{port} ...", file=sys.stderr)
     reader, writer = await asyncio.open_connection(host, port)
     print(f"[REMOTE] Connected to {host}:{port}", file=sys.stderr)
@@ -206,9 +278,6 @@ async def remote_client_task(host: str,
 
             from_, freq, callsign, mode, speed, snr, activity, timestamp = parsed
 
-            # Filter callsign
-            if filter_callsign != "*" and callsign.upper() != filter_callsign.upper():
-                continue
 
             # If pass the filter show at stdout and send to clients
 
@@ -216,6 +285,18 @@ async def remote_client_task(host: str,
             spot=f"DX de {cluster}:"
             spot=spot.ljust(15)
             f=freq.rjust(9)
+
+            fx=int(float(f))
+            if band != freq2band(fx):
+               continue
+
+            # Filter callsign
+            if filter_callsign != "*" and callsign.upper() != filter_callsign.upper():
+                plt.show(block=False)
+                plt.pause(0.001)
+                continue
+
+
             #cl=f"{filter_callsign}"
             cl=f"{callsign.upper()}"
             cl=cl.replace("#","")
@@ -230,11 +311,28 @@ async def remote_client_task(host: str,
             newline=f"{spot}{f}  {cl}{msg}{timestamp}" 
             print(newline,end="\n")
 
-            my_lookuplib = LookupLib(lookuptype="countryfile")
-            cic = Callinfo(my_lookuplib)
-            z=cic.get_all(callsign.upper())
-            print(z)  
-  
+            try:
+               o=cic.get_all(cluster.upper())
+               z=cic.get_all(callsign.upper())
+            except:
+               print(f"Callsign {cluster.upper()} or {callsign.upper()} can not be decoded")
+               continue
+
+            laFrom=float(o['latitude'])
+            loFrom=float(o['longitude'])
+
+            laTo=float(z['latitude']) 
+            loTo=float(z['longitude']) 
+
+            lat = [laFrom,laTo]
+            lon = [loFrom,loTo]
+
+            r=band2color(band)
+
+            x,y = map(lon, lat)
+            map.plot(x, y, 'o-', color=r,markersize=1, linewidth=1)
+            plt.show(block=False)
+            plt.pause(0.001)
 
             await broadcast_to_clients(newline)
 
@@ -251,6 +349,7 @@ async def remote_client_task(host: str,
 
 async def main_async(args):
     # Start the local telnet server
+    global map
     server = await asyncio.start_server(
         handle_local_client,
         host="0.0.0.0",
@@ -272,8 +371,33 @@ async def main_async(args):
             response=args.response,
             filter_callsign=args.filter_callsign,
             init_string=args.init_string,
+            band=args.band,
         )
     )
+    date="2025-12-20"
+    yy=int(date.split("-")[0])
+    mm=int(date.split("-")[1])
+    dd=int(date.split("-")[2])
+    h=22
+
+
+    map=buildMap();
+    f = datetime.datetime(yy,mm,dd,h,0,0)
+    CS=map.nightshade(f)
+    modeGIF="SHADED"
+    if (modeGIF=="SHADED"):
+       map.shadedrelief(scale=0.1)
+    else:
+       map.bluemarble(scale=0.1)
+
+    title="PyMap"
+    plt.title(title)
+    if len(str(h)) == 1:
+       stHour="0"+str(h)
+    else:
+       stHour=str(h)
+    #plt.close("all")
+
 
     # While connected to the cluster accept local telnet connections.
     try:
@@ -326,6 +450,12 @@ def parse_args():
         type=int,
         required=True,
         help="Local telnet server port"
+    )
+    parser.add_argument(
+        "-B", "--band",
+        type=str,
+        required=True,
+        help="Band to filter"
     )
     parser.add_argument(
         "-f", "--filter-callsign",
