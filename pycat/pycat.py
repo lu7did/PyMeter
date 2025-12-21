@@ -46,12 +46,8 @@ class OmniRigEvents:
             rig = omni.Rig1 if RigNumber == 1 else omni.Rig2
             freq = rig.Freq
             mode = rig.Mode
-            if RigNumber==1:
-               self.win.rig1_freq_label.setText(f"{freq/1e6:.3f} MHz")
-               self.win.rig1_vfo_label.setText(str(rig.Vfo))
-            else:
-               self.win.rig2_freq_label.setText(f"{freq/1e6:.3f} MHz")
-               self.win.rig2_vfo_label.setText(str(rig.Vfo))
+            print(f"[EVENT] OnParamsChange: rig={RigNumber}, Freq{freq} mode{mode}", flush=True)
+
         except Exception as e:
             print(f"[EVENT] ParamsChangeEvent: rig={RigNumber}, error reading params: {e}", flush=True)
 
